@@ -1,5 +1,7 @@
 export type PassTier = 'STANDARD' | 'PATRON' | 'CURATOR';
 
+export type NavigationMode = 'ORBIT' | 'WALK';
+
 export interface MuseumPass {
   id: string;
   tokenId: string;
@@ -34,6 +36,21 @@ export interface ExhibitData {
   room: 'rotunda' | 'renaissance' | 'cyberpunk' | 'vault';
   accentColor: string;
   updatedAt?: string;
+}
+
+export interface MarketplaceListing {
+  id: string;
+  itemId: string;
+  title: string;
+  imageUrl?: string;
+  itemType: 'NFT' | 'MUSEUM_PASS';
+  price: number;
+  sellerAddress: string;
+  buyerAddress?: string;
+  status: 'ACTIVE' | 'SOLD' | 'CANCELLED';
+  createdAt: string;
+  soldAt?: string;
+  passTier?: PassTier;
 }
 
 export interface ContractDeployment {

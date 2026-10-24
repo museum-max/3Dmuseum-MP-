@@ -6,14 +6,12 @@ import {
   createPedestalBumpTexture,
   createProceduralNftCanvas,
 } from './proceduralArt';
-import { ExhibitData } from '../types';
+import { ExhibitData, NavigationMode } from '../types';
 import { sound } from '../audio/soundEffects';
 
-// Module-level pre-allocated math scratch objects (Zero-GC mandate)
 const _vec3 = new THREE.Vector3();
-const _targetPos = new THREE.Vector3();
+const _moveDir = new THREE.Vector3();
 const _targetLook = new THREE.Vector3();
-const _currentLook = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
 
@@ -21,6 +19,8 @@ export interface MuseumSceneCallbacks {
   onSelectExhibit: (exhibit: ExhibitData | null) => void;
   onHoverExhibit: (exhibit: ExhibitData | null) => void;
   onVaultDoorTrigger?: () => void;
+  onNearbyExhibit?: (exhibit: ExhibitData | null) => void;
+  onModeChange?: (mode: NavigationMode) => void;
 }
 
 interface ExhibitMeshRecord {
@@ -41,7 +41,18 @@ export class MuseumScene {
 
   private animationFrameId: number = 0;
   private isDisposed: boolean = false;
-  private clock = new THREE.Clock();
+  private timer = new THREE.Timer();
+
+  // Navigation Mode (ORBIT or WALK)
+  private navMode: NavigationMode = 'WALK';
+
+  // Walk physics & keyboard state
+  private keysPressed: Record<string, boolean> = {};
+  private walkVelocity = new THREE.Vector3();
+  private walkYaw = 0; // Horizontal look angle in radians
+  private walkPitch = 0; // Vertical look angle in radians
+  private walkStep = 0; // Head bob accumulator
+  private isSprint = false;
 
   // Interactive targets
   private exhibitRecords: ExhibitMeshRecord[] = [];
@@ -49,15 +60,14 @@ export class MuseumScene {
   private kineticSculptures: THREE.Group[] = [];
   private vaultDoors: { left: THREE.Mesh; right: THREE.Mesh; openAmount: number; targetOpen: number } | null = null;
   private currentConnectedAddress: string = '';
+  private isVaultUnlocked: boolean = false;
 
-  // Camera damping state
+  // Camera damping state for Orbit mode
   private cameraTargetPosition = new THREE.Vector3(0, 1.7, 7.5);
   private cameraTargetLookAt = new THREE.Vector3(0, 1.5, 0);
   private cameraCurrentLookAt = new THREE.Vector3(0, 1.5, 0);
   private isUserInteracting = false;
   private pointerDownPos = { x: 0, y: 0 };
-
-  // Free mouse look / orbit parameters
   private spherical = { radius: 8, theta: 0, phi: Math.PI / 2.2 };
   private activeExhibit: ExhibitData | null = null;
 
@@ -65,7 +75,6 @@ export class MuseumScene {
     this.container = container;
     this.callbacks = callbacks;
 
-    // 1. Detect software WebGL
     this.isSoftwareGl = (() => {
       const gl = document.createElement('canvas').getContext('webgl2');
       if (!gl) return true;
@@ -76,7 +85,6 @@ export class MuseumScene {
       return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
     })();
 
-    // 2. Initialize Three.js Scene & Camera
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#030712');
     this.scene.fog = new THREE.FogExp2('#030712', 0.024);
@@ -87,9 +95,8 @@ export class MuseumScene {
       0.1,
       120
     );
-    this.camera.position.set(0, 1.7, 8.5);
+    this.camera.position.set(0, 1.7, 7.5);
 
-    // 3. Renderer configuration
     this.renderer = new THREE.WebGLRenderer({
       antialias: !this.isSoftwareGl,
       powerPreference: 'high-performance',
@@ -107,20 +114,20 @@ export class MuseumScene {
 
     container.appendChild(this.renderer.domElement);
 
-    // 4. Studio Environment Lighting
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
     pmremGenerator.dispose();
 
-    // 5. Build Museum Architecture & Exhibits
     this.buildLighting();
     this.buildArchitecture();
     this.buildHeroExhibits();
 
-    // 6. Bind Event Handlers
     this.bindEvents();
 
-    // 7. Start Render Loop
+    if (typeof document !== 'undefined') {
+      this.timer.connect(document);
+    }
+
     this.tick = this.tick.bind(this);
     this.tick();
   }
@@ -143,8 +150,8 @@ export class MuseumScene {
       keyLight.shadow.camera.right = d;
       keyLight.shadow.camera.top = d;
       keyLight.shadow.camera.bottom = -d;
-      keyLight.shadow.bias = -0.0004;
-      keyLight.shadow.normalBias = 0.02;
+      keyLight.shadow.bias = -0.0001;
+      keyLight.shadow.normalBias = 0;
     }
     this.scene.add(keyLight);
 
@@ -156,7 +163,6 @@ export class MuseumScene {
   private buildArchitecture() {
     const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
 
-    // 1. Polished Marble Floor
     const floorGeo = new THREE.PlaneGeometry(60, 60);
     const floorTex = createMarbleFloorTexture(maxAnisotropy);
     const floorMat = new THREE.MeshStandardMaterial({
@@ -169,7 +175,6 @@ export class MuseumScene {
     floorMesh.receiveShadow = !this.isSoftwareGl;
     this.scene.add(floorMesh);
 
-    // 2. Grand Rotunda Pillars
     const columnCount = 8;
     const rotundaRadius = 11;
     const columnMaterial = new THREE.MeshStandardMaterial({
@@ -220,7 +225,6 @@ export class MuseumScene {
       this.scene.add(colGroup);
     }
 
-    // 3. Grand Skylight Oculus Dome
     const oculusGroup = new THREE.Group();
     oculusGroup.position.set(0, 7.8, 0);
 
@@ -242,7 +246,6 @@ export class MuseumScene {
 
     this.scene.add(oculusGroup);
 
-    // 4. Perimeter Walls & VIP Archway
     const wallMat = new THREE.MeshStandardMaterial({
       color: '#0f172a',
       roughness: 0.7,
@@ -271,7 +274,6 @@ export class MuseumScene {
     archHeader.castShadow = !this.isSoftwareGl;
     this.scene.add(archHeader);
 
-    // VIP Vault Sliding Doors
     const doorMat = new THREE.MeshStandardMaterial({
       color: '#1e1b4b',
       metalness: 0.9,
@@ -312,7 +314,7 @@ export class MuseumScene {
         title: 'Genesis Monolith // #001',
         artist: 'Satoshi Algorists',
         creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
-        ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f', // Verified Owned by Default Testnet User!
+        ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
         contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
         tokenId: '1',
         description: 'A mathematical singularity encoded into autonomous recursive geometry. The primary genesis artifact of the museum.',
@@ -352,7 +354,7 @@ export class MuseumScene {
         title: 'Ethereal Nebula // #042',
         artist: 'Celeste Nova',
         creatorAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
-        ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f', // Also Owned!
+        ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
         contractAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
         tokenId: '42',
         description: 'Deep cosmic accretion cloud captured during interstellar spectroscopic mapping. Radiates vibrant magenta pulses.',
@@ -435,7 +437,6 @@ export class MuseumScene {
       exhibitGroup.position.set(...exhibit.position);
       exhibitGroup.rotation.set(...exhibit.rotation);
 
-      // Contact shadow
       const shadowGeo = new THREE.PlaneGeometry(3.2, 3.2);
       const shadowMat = new THREE.MeshBasicMaterial({
         map: shadowTex,
@@ -448,7 +449,6 @@ export class MuseumScene {
       shadowMesh.position.y = 0.015;
       exhibitGroup.add(shadowMesh);
 
-      // Pedestal
       const pedestalGroup = new THREE.Group();
 
       const plinthGeo = new THREE.BoxGeometry(1.4, 0.25, 1.4);
@@ -507,7 +507,6 @@ export class MuseumScene {
 
       exhibitGroup.add(pedestalGroup);
 
-      // Framed Art Canvas
       const nftTexture = createProceduralNftCanvas(exhibit.id, maxAnisotropy);
       const canvasGeo = new THREE.BoxGeometry(1.5, 1.5, 0.08);
       const frameMat = new THREE.MeshStandardMaterial({
@@ -527,7 +526,6 @@ export class MuseumScene {
       framedArt.castShadow = !this.isSoftwareGl;
       exhibitGroup.add(framedArt);
 
-      // Kinetic Rings
       const kineticGroup = new THREE.Group();
       kineticGroup.position.set(0, 2.0, 0);
 
@@ -557,11 +555,10 @@ export class MuseumScene {
       exhibitGroup.add(kineticGroup);
       this.kineticSculptures.push(kineticGroup);
 
-      // 3D Holographic "VERIFIED OWNER" Badge (Shown when connected wallet owns the NFT!)
+      // 3D Holographic "VERIFIED OWNER" Badge
       const badgeGroup = new THREE.Group();
       badgeGroup.position.set(0, 3.15, 0);
 
-      // Golden Halo Ring
       const haloGeo = new THREE.TorusGeometry(0.42, 0.025, 16, 32);
       const haloMat = new THREE.MeshStandardMaterial({
         color: '#facc15',
@@ -574,7 +571,6 @@ export class MuseumScene {
       halo.rotation.x = Math.PI / 2;
       badgeGroup.add(halo);
 
-      // Center Diamond Crest
       const diamondGeo = new THREE.OctahedronGeometry(0.18, 0);
       const diamondMat = new THREE.MeshStandardMaterial({
         color: '#fef08a',
@@ -585,10 +581,9 @@ export class MuseumScene {
       const diamond = new THREE.Mesh(diamondGeo, diamondMat);
       badgeGroup.add(diamond);
 
-      badgeGroup.visible = false; // Toggled via updateOwnershipState
+      badgeGroup.visible = false;
       exhibitGroup.add(badgeGroup);
 
-      // Spotlight
       const spotLight = new THREE.SpotLight(
         '#ffffff',
         3.5,
@@ -603,15 +598,9 @@ export class MuseumScene {
         exhibit.position[2] + 2.5
       );
       spotLight.target = framedArt;
-      spotLight.castShadow = !this.isSoftwareGl;
-      if (spotLight.shadow) {
-        spotLight.shadow.mapSize.width = 1024;
-        spotLight.shadow.mapSize.height = 1024;
-        spotLight.shadow.bias = -0.0005;
-      }
+      spotLight.castShadow = false;
       this.scene.add(spotLight);
 
-      // Collider Box
       const colliderGeo = new THREE.BoxGeometry(2.2, 3.2, 2.2);
       const colliderMat = new THREE.MeshBasicMaterial({ visible: false });
       const colliderMesh = new THREE.Mesh(colliderGeo, colliderMat);
@@ -632,6 +621,29 @@ export class MuseumScene {
     });
   }
 
+  public setNavigationMode(mode: NavigationMode) {
+    this.navMode = mode;
+    sound.playClick();
+    if (mode === 'WALK') {
+      this.camera.position.y = 1.7;
+      // Derive walkYaw from camera look direction
+      _targetLook.subVectors(this.cameraCurrentLookAt, this.camera.position);
+      this.walkYaw = Math.atan2(-_targetLook.x, -_targetLook.z);
+    }
+    if (this.callbacks.onModeChange) {
+      this.callbacks.onModeChange(mode);
+    }
+  }
+
+  public getNavigationMode(): NavigationMode {
+    return this.navMode;
+  }
+
+  // Virtual Joypad Direction Trigger for Mobile / Onscreen Buttons
+  public setVirtualKey(key: string, pressed: boolean) {
+    this.keysPressed[key.toLowerCase()] = pressed;
+  }
+
   public updateOwnershipState(connectedAddress: string) {
     this.currentConnectedAddress = connectedAddress;
     this.exhibitRecords.forEach((rec) => {
@@ -643,7 +655,6 @@ export class MuseumScene {
 
       rec.ownerBadge.visible = isOwner;
 
-      // Enhance accent lighting for owned pieces
       if (isOwner) {
         rec.accentLight.intensity = 5.0;
         rec.accentLight.color.set('#fef08a');
@@ -659,8 +670,6 @@ export class MuseumScene {
       const rec = this.exhibitRecords.find((r) => r.data.id === newData.id);
       if (rec) {
         rec.data = { ...rec.data, ...newData };
-
-        // If custom image is set, update texture
         if (newData.imageUrl && newData.imageUrl !== '') {
           this.loadCustomTexture(rec, newData.imageUrl, newData.title, newData.artist);
         }
@@ -687,14 +696,10 @@ export class MuseumScene {
       canvas.height = 1024;
       const ctx = canvas.getContext('2d')!;
 
-      // Draw background
       ctx.fillStyle = '#09090b';
       ctx.fillRect(0, 0, 1024, 1024);
-
-      // Draw artwork fitted
       ctx.drawImage(img, 60, 60, 904, 820);
 
-      // Draw museum gold plaque text
       ctx.fillStyle = '#facc15';
       ctx.font = 'bold 36px monospace';
       ctx.shadowColor = '#000000';
@@ -729,6 +734,7 @@ export class MuseumScene {
   }
 
   public setVaultUnlocked(unlocked: boolean) {
+    this.isVaultUnlocked = unlocked;
     if (this.vaultDoors) {
       this.vaultDoors.targetOpen = unlocked ? 2.6 : 0;
       if (unlocked) {
@@ -753,6 +759,16 @@ export class MuseumScene {
       exhibit.position[2]
     );
 
+    // If in walk mode, place avatar facing exhibit
+    if (this.navMode === 'WALK') {
+      this.camera.position.set(targetX, 1.7, targetZ);
+      this.walkYaw = Math.atan2(
+        -(exhibit.position[0] - targetX),
+        -(exhibit.position[2] - targetZ)
+      );
+      this.walkPitch = 0.05;
+    }
+
     this.callbacks.onSelectExhibit(exhibit);
   }
 
@@ -761,32 +777,68 @@ export class MuseumScene {
     sound.playClick();
     this.cameraTargetPosition.set(0, 1.8, 8.5);
     this.cameraTargetLookAt.set(0, 1.5, 0);
+    this.walkYaw = 0;
+    this.walkPitch = 0;
     this.callbacks.onSelectExhibit(null);
   }
 
   public jumpToRoom(room: 'rotunda' | 'renaissance' | 'cyberpunk' | 'vault') {
     sound.playClick();
     if (room === 'rotunda') {
-      this.cameraTargetPosition.set(0, 2.2, 7.5);
+      this.cameraTargetPosition.set(0, 1.7, 7.5);
       this.cameraTargetLookAt.set(0, 1.8, 0);
+      this.walkYaw = 0;
     } else if (room === 'renaissance') {
-      this.cameraTargetPosition.set(-6.5, 2.0, 0.5);
+      this.cameraTargetPosition.set(-6.5, 1.7, 0.5);
       this.cameraTargetLookAt.set(-6.5, 1.9, -3.5);
+      this.walkYaw = 0;
     } else if (room === 'cyberpunk') {
-      this.cameraTargetPosition.set(6.5, 2.0, 0.5);
+      this.cameraTargetPosition.set(6.5, 1.7, 0.5);
       this.cameraTargetLookAt.set(6.5, 1.9, -3.5);
+      this.walkYaw = 0;
     } else {
-      this.cameraTargetPosition.set(0, 2.0, -11.5);
+      this.cameraTargetPosition.set(0, 1.7, -11.5);
       this.cameraTargetLookAt.set(0, 1.9, -19.5);
+      this.walkYaw = 0;
       if (this.callbacks.onVaultDoorTrigger) {
         this.callbacks.onVaultDoorTrigger();
       }
+    }
+
+    if (this.navMode === 'WALK') {
+      this.camera.position.copy(this.cameraTargetPosition);
+      this.camera.position.y = 1.7;
     }
   }
 
   private bindEvents() {
     const el = this.renderer.domElement;
 
+    // Keyboard WASD & Arrow listeners
+    window.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+      const key = e.key.toLowerCase();
+      this.keysPressed[key] = true;
+
+      if (e.key === 'Shift') this.isSprint = true;
+
+      // 'E' key to inspect nearest exhibit when walking
+      if (key === 'e' && this.navMode === 'WALK') {
+        const nearest = this.getNearestExhibit();
+        if (nearest && nearest.distance < 3.2) {
+          this.focusExhibit(nearest.record.data);
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      this.keysPressed[key] = false;
+      if (e.key === 'Shift') this.isSprint = false;
+    });
+
+    // Pointer Drag & Look
     el.addEventListener('pointerdown', (e) => {
       this.isUserInteracting = true;
       this.pointerDownPos = { x: e.clientX, y: e.clientY };
@@ -810,17 +862,24 @@ export class MuseumScene {
       _pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
       if (this.isUserInteracting) {
-        const deltaX = (e.clientX - this.pointerDownPos.x) * 0.003;
-        const deltaY = (e.clientY - this.pointerDownPos.y) * 0.003;
+        const deltaX = (e.clientX - this.pointerDownPos.x);
+        const deltaY = (e.clientY - this.pointerDownPos.y);
         this.pointerDownPos = { x: e.clientX, y: e.clientY };
 
-        this.spherical.theta -= deltaX;
-        this.spherical.phi = Math.max(0.1, Math.min(Math.PI / 2.05, this.spherical.phi - deltaY));
+        if (this.navMode === 'WALK') {
+          // Look around in first-person walking mode
+          this.walkYaw -= deltaX * 0.0035;
+          this.walkPitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.walkPitch - deltaY * 0.0035));
+        } else {
+          // Orbit drag
+          this.spherical.theta -= deltaX * 0.003;
+          this.spherical.phi = Math.max(0.1, Math.min(Math.PI / 2.05, this.spherical.phi - deltaY * 0.003));
 
-        const radius = this.cameraTargetPosition.distanceTo(this.cameraTargetLookAt);
-        this.cameraTargetPosition.x = this.cameraTargetLookAt.x + radius * Math.sin(this.spherical.phi) * Math.sin(this.spherical.theta);
-        this.cameraTargetPosition.y = this.cameraTargetLookAt.y + radius * Math.cos(this.spherical.phi);
-        this.cameraTargetPosition.z = this.cameraTargetLookAt.z + radius * Math.sin(this.spherical.phi) * Math.cos(this.spherical.theta);
+          const radius = this.cameraTargetPosition.distanceTo(this.cameraTargetLookAt);
+          this.cameraTargetPosition.x = this.cameraTargetLookAt.x + radius * Math.sin(this.spherical.phi) * Math.sin(this.spherical.theta);
+          this.cameraTargetPosition.y = this.cameraTargetLookAt.y + radius * Math.cos(this.spherical.phi);
+          this.cameraTargetPosition.z = this.cameraTargetLookAt.z + radius * Math.sin(this.spherical.phi) * Math.cos(this.spherical.theta);
+        }
       } else {
         _raycaster.setFromCamera(_pointer, this.camera);
         const intersects = _raycaster.intersectObjects(this.interactiveObjects, false);
@@ -856,6 +915,101 @@ export class MuseumScene {
     }
   }
 
+  private getNearestExhibit(): { record: ExhibitMeshRecord; distance: number } | null {
+    let nearest: ExhibitMeshRecord | null = null;
+    let minD = Infinity;
+
+    this.exhibitRecords.forEach((rec) => {
+      const d = Math.hypot(
+        this.camera.position.x - rec.data.position[0],
+        this.camera.position.z - rec.data.position[2]
+      );
+      if (d < minD) {
+        minD = d;
+        nearest = rec;
+      }
+    });
+
+    if (nearest) return { record: nearest, distance: minD };
+    return null;
+  }
+
+  private updateWalkPhysics(delta: number) {
+    _moveDir.set(0, 0, 0);
+
+    const forward = this.keysPressed['w'] || this.keysPressed['arrowup'];
+    const backward = this.keysPressed['s'] || this.keysPressed['arrowdown'];
+    const left = this.keysPressed['a'] || this.keysPressed['arrowleft'];
+    const right = this.keysPressed['d'] || this.keysPressed['arrowright'];
+
+    if (forward) _moveDir.z -= 1;
+    if (backward) _moveDir.z += 1;
+    if (left) _moveDir.x -= 1;
+    if (right) _moveDir.x += 1;
+
+    const isMoving = _moveDir.lengthSq() > 0;
+
+    if (isMoving) {
+      _moveDir.normalize();
+
+      // Transform move vector relative to camera walkYaw
+      const cos = Math.cos(this.walkYaw);
+      const sin = Math.sin(this.walkYaw);
+
+      const worldX = _moveDir.x * cos + _moveDir.z * sin;
+      const worldZ = -_moveDir.x * sin + _moveDir.z * cos;
+
+      const speed = this.isSprint ? 7.5 : 4.5;
+      this.walkVelocity.x = worldX * speed;
+      this.walkVelocity.z = worldZ * speed;
+
+      // Accumulate head bobbing
+      this.walkStep += delta * (this.isSprint ? 14 : 9);
+    } else {
+      // Damping
+      this.walkVelocity.x = THREE.MathUtils.damp(this.walkVelocity.x, 0, 8, delta);
+      this.walkVelocity.z = THREE.MathUtils.damp(this.walkVelocity.z, 0, 8, delta);
+    }
+
+    // Apply movement
+    this.camera.position.x += this.walkVelocity.x * delta;
+    this.camera.position.z += this.walkVelocity.z * delta;
+
+    // Head bobbing calculation
+    const bobOffset = isMoving ? Math.sin(this.walkStep) * 0.045 : 0;
+    this.camera.position.y = 1.7 + bobOffset;
+
+    // Natural perimeter boundary clamping (museum floor boundaries)
+    this.camera.position.x = Math.max(-23, Math.min(23, this.camera.position.x));
+
+    // Vault wall collision: if vault is locked, cannot pass through z = -14.2
+    const minZ = this.isVaultUnlocked ? -22.5 : -14.0;
+    if (this.camera.position.z < minZ) {
+      this.camera.position.z = minZ;
+      if (!this.isVaultUnlocked && this.callbacks.onVaultDoorTrigger) {
+        this.callbacks.onVaultDoorTrigger();
+      }
+    }
+    this.camera.position.z = Math.min(23, this.camera.position.z);
+
+    // Compute look-at point from yaw and pitch
+    const lookTargetX = this.camera.position.x - Math.sin(this.walkYaw) * Math.cos(this.walkPitch);
+    const lookTargetY = this.camera.position.y + Math.sin(this.walkPitch);
+    const lookTargetZ = this.camera.position.z - Math.cos(this.walkYaw) * Math.cos(this.walkPitch);
+
+    this.camera.lookAt(lookTargetX, lookTargetY, lookTargetZ);
+
+    // Proximity check for notification
+    const nearest = this.getNearestExhibit();
+    if (this.callbacks.onNearbyExhibit) {
+      if (nearest && nearest.distance < 3.2) {
+        this.callbacks.onNearbyExhibit(nearest.record.data);
+      } else {
+        this.callbacks.onNearbyExhibit(null);
+      }
+    }
+  }
+
   private onResize() {
     if (!this.container || this.isDisposed) return;
     const w = this.container.clientWidth;
@@ -865,19 +1019,18 @@ export class MuseumScene {
     this.renderer.setSize(w, h);
   }
 
-  private tick() {
+  private tick(timestamp?: number) {
     if (this.isDisposed) return;
 
-    const delta = Math.min(this.clock.getDelta(), 0.1);
-    const elapsed = this.clock.getElapsedTime();
+    this.timer.update(timestamp);
+    const delta = Math.min(this.timer.getDelta(), 0.1);
+    const elapsed = this.timer.getElapsed();
 
-    // 1. Kinetic Sculptures
     this.kineticSculptures.forEach((grp, idx) => {
       grp.rotation.y = elapsed * (0.35 + idx * 0.05);
       grp.rotation.z = Math.sin(elapsed * 0.5 + idx) * 0.15;
     });
 
-    // 2. Owner Badges Float Animation
     this.exhibitRecords.forEach((rec) => {
       if (rec.ownerBadge.visible) {
         rec.ownerBadge.rotation.y = elapsed * 1.5;
@@ -885,7 +1038,6 @@ export class MuseumScene {
       }
     });
 
-    // 3. VIP Vault Doors
     if (this.vaultDoors) {
       this.vaultDoors.openAmount = THREE.MathUtils.damp(
         this.vaultDoors.openAmount,
@@ -897,17 +1049,21 @@ export class MuseumScene {
       this.vaultDoors.right.position.x = 1.4 + this.vaultDoors.openAmount;
     }
 
-    // 4. Damped Camera
-    const dampSpeed = 3.5;
-    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.cameraTargetPosition.x, dampSpeed, delta);
-    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, this.cameraTargetPosition.y, dampSpeed, delta);
-    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, this.cameraTargetPosition.z, dampSpeed, delta);
+    if (this.navMode === 'WALK') {
+      this.updateWalkPhysics(delta);
+    } else {
+      // ORBIT Mode Camera Damping
+      const dampSpeed = 3.5;
+      this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.cameraTargetPosition.x, dampSpeed, delta);
+      this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, this.cameraTargetPosition.y, dampSpeed, delta);
+      this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, this.cameraTargetPosition.z, dampSpeed, delta);
 
-    this.cameraCurrentLookAt.x = THREE.MathUtils.damp(this.cameraCurrentLookAt.x, this.cameraTargetLookAt.x, dampSpeed, delta);
-    this.cameraCurrentLookAt.y = THREE.MathUtils.damp(this.cameraCurrentLookAt.y, this.cameraTargetLookAt.y, dampSpeed, delta);
-    this.cameraCurrentLookAt.z = THREE.MathUtils.damp(this.cameraCurrentLookAt.z, this.cameraTargetLookAt.z, dampSpeed, delta);
+      this.cameraCurrentLookAt.x = THREE.MathUtils.damp(this.cameraCurrentLookAt.x, this.cameraTargetLookAt.x, dampSpeed, delta);
+      this.cameraCurrentLookAt.y = THREE.MathUtils.damp(this.cameraCurrentLookAt.y, this.cameraTargetLookAt.y, dampSpeed, delta);
+      this.cameraCurrentLookAt.z = THREE.MathUtils.damp(this.cameraCurrentLookAt.z, this.cameraTargetLookAt.z, dampSpeed, delta);
 
-    this.camera.lookAt(this.cameraCurrentLookAt);
+      this.camera.lookAt(this.cameraCurrentLookAt);
+    }
 
     this.renderer.render(this.scene, this.camera);
     this.animationFrameId = requestAnimationFrame(this.tick);
@@ -917,6 +1073,7 @@ export class MuseumScene {
     this.isDisposed = true;
     cancelAnimationFrame(this.animationFrameId);
     window.removeEventListener('resize', this.onResize.bind(this));
+    this.timer.dispose();
 
     this.scene.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {

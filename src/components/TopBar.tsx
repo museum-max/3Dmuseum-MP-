@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   HelpCircle,
   Upload,
+  ShoppingBag,
 } from 'lucide-react';
 import { WalletState } from '../types';
 import { sound } from '../audio/soundEffects';
@@ -21,6 +22,7 @@ interface TopBarProps {
   wallet: WalletState;
   onOpenPassModal: (tab?: 'mint' | 'transfer' | 'deploy' | 'contract') => void;
   onOpenImportModal: () => void;
+  onOpenMarketplace: () => void;
   onOpenGuestbook: () => void;
   onOpenTransactions: () => void;
   onConnectWallet: () => void;
@@ -30,6 +32,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   wallet,
   onOpenPassModal,
   onOpenImportModal,
+  onOpenMarketplace,
   onOpenGuestbook,
   onOpenTransactions,
   onConnectWallet,
@@ -72,7 +75,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
         </div>
 
-        {/* Right: Actions, Curate, Pass, Wallet */}
+        {/* Right: Actions, Marketplace, Curate, Pass, Wallet */}
         <div className="flex items-center gap-2 pointer-events-auto">
           {/* Audio Synthesizer */}
           <button
@@ -83,6 +86,16 @@ export const TopBar: React.FC<TopBarProps> = ({
             {muted ? <VolumeX className="w-4 h-4 text-slate-400" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
           </button>
 
+          {/* Marketplace Button */}
+          <button
+            onClick={onOpenMarketplace}
+            title="P2P Marketplace: Buy &amp; Sell NFTs and Passes"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-900 hover:text-white transition-colors text-xs font-mono font-bold shadow-md shadow-emerald-950/30"
+          >
+            <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Marketplace</span>
+          </button>
+
           {/* Curate / Display External NFT */}
           <button
             onClick={onOpenImportModal}
@@ -90,17 +103,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-amber-500/40 text-amber-300 hover:border-amber-400 hover:text-white transition-colors text-xs font-mono"
           >
             <Upload className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Curate NFT</span>
-          </button>
-
-          {/* Smart Contract & Deploy Terminal */}
-          <button
-            onClick={() => onOpenPassModal('deploy')}
-            title="Deploy or Inspect Museum Pass (MP) Smart Contract"
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700/60 text-slate-300 hover:text-white hover:border-purple-500/50 transition-colors text-xs font-mono"
-          >
-            <Code2 className="w-3.5 h-3.5 text-purple-400" />
-            <span>Deploy (MP)</span>
+            <span className="hidden sm:inline">Curate</span>
           </button>
 
           {/* Guestbook */}
@@ -139,7 +142,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 {wallet.activePass.tier} PASS ({wallet.balanceMP})
               </span>
             ) : (
-              <span className="font-semibold tracking-wide">MINT PASS (MP)</span>
+              <span className="font-semibold tracking-wide">MINT PASS</span>
             )}
           </button>
 
@@ -187,20 +190,20 @@ export const TopBar: React.FC<TopBarProps> = ({
             </div>
             <div className="space-y-3 text-sm text-slate-300">
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-slate-800/60">
-                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-amber-300 font-bold">CLICK / TAP</span>
-                <p className="text-xs">Select any NFT artwork pedestal to inspect metadata, bid, transfer, or curate in full detail.</p>
+                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-amber-300 font-bold">W S A D</span>
+                <p className="text-xs">First-person walk navigation. W (forward), S (backward), A (left), D (right). Hold Shift to sprint!</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-slate-800/60">
-                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-sky-300 font-bold">OWNERSHIP</span>
-                <p className="text-xs">Connected wallet ownership is verified against smart contracts. Owned NFTs display a 3D golden halo badge!</p>
+                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-sky-300 font-bold">KEY &apos;E&apos;</span>
+                <p className="text-xs">Inspect exhibit when walking close to a pedestal.</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-slate-800/60">
-                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-pink-300 font-bold">CURATE NFT</span>
-                <p className="text-xs">Fetch any ERC-721 / ERC-1155 token metadata and render it dynamically onto any 3D museum pedestal.</p>
+                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-emerald-300 font-bold">MARKET</span>
+                <p className="text-xs">Decentralized P2P Marketplace where every user can buy and sell exhibited NFTs and Museum Passes.</p>
               </div>
               <div className="flex items-start gap-3 p-2.5 rounded-lg bg-slate-800/60">
-                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-purple-300 font-bold">MUSEUM PASS</span>
-                <p className="text-xs">Mint, transfer, or deploy Museum Pass (MP) tokens on the Firebase testnet with smart contracts.</p>
+                <span className="font-mono text-xs px-2 py-1 rounded bg-slate-700 text-purple-300 font-bold">KEY &apos;H&apos;</span>
+                <p className="text-xs">Toggle Cinema Mode to hide or show HUD controls.</p>
               </div>
             </div>
             <button

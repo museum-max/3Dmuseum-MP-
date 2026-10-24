@@ -35,6 +35,19 @@ service cloud.firestore {
              data.likesCount is number && data.likesCount >= 0;
     }
 
+    function isValidListing(data) {
+      return data.keys().hasAll(['id', 'itemId', 'title', 'itemType', 'price', 'sellerAddress', 'status', 'createdAt']) &&
+             data.keys().hasOnly(['id', 'itemId', 'title', 'imageUrl', 'itemType', 'price', 'sellerAddress', 'buyerAddress', 'status', 'createdAt', 'soldAt']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.itemId is string && data.itemId.size() <= 128 &&
+             data.title is string && data.title.size() <= 128 &&
+             data.itemType in ['NFT', 'MUSEUM_PASS'] &&
+             data.price is number && data.price > 0 &&
+             data.sellerAddress is string && data.sellerAddress.size() <= 64 &&
+             data.status in ['ACTIVE', 'SOLD', 'CANCELLED'] &&
+             data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
     function isValidDeployment(data) {
       return data.keys().hasAll(['id', 'contractAddress', 'name', 'symbol', 'standard', 'deployer', 'txHash', 'deployedAt']) &&
              data.keys().hasOnly(['id', 'contractAddress', 'name', 'symbol', 'standard', 'deployer', 'txHash', 'deployedAt', 'totalSupply']) &&
@@ -69,7 +82,7 @@ service cloud.firestore {
              data.timestamp is string && data.timestamp.size() <= 64;
     }
 
-    // Museum Passes collection (Creation and Ownership Transfer)
+    // Museum Passes collection
     match /museum_passes/{passId} {
       allow read: if true;
       allow create: if isValidId(passId) && isValidPass(request.resource.data);
@@ -80,7 +93,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Exhibits collection (curation, metadata sync, likes and bids)
+    // Exhibits collection
     match /exhibits/{exhibitId} {
       allow read: if true;
       allow create: if isValidId(exhibitId) && isValidExhibit(request.resource.data);
@@ -93,6 +106,19 @@ service cloud.firestore {
          request.resource.data.bidsCount is number) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'artist', 'description', 'imageUrl', 'ownerAddress', 'updatedAt']) &&
          isValidExhibit(request.resource.data))
+      );
+      allow delete: if false;
+    }
+
+    // Marketplace Listings collection (Buy, Sell, Cancel)
+    match /marketplace_listings/{listingId} {
+      allow read: if true;
+      allow create: if isValidId(listingId) && isValidListing(request.resource.data);
+      allow update: if isValidId(listingId) && (
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'buyerAddress', 'soldAt']) &&
+         request.resource.data.status in ['SOLD', 'CANCELLED']) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['price', 'status']) &&
+         request.resource.data.price is number && request.resource.data.price > 0)
       );
       allow delete: if false;
     }
@@ -111,7 +137,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Indexed Blockchain Transactions & Transfer Logs
+    // Indexed Blockchain Transactions
     match /transactions/{txId} {
       allow read: if true;
       allow create: if isValidId(txId) && isValidTx(request.resource.data);

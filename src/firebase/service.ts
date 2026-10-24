@@ -14,6 +14,7 @@ import {
   VisitorLogEntry,
   ChainTransaction,
   ContractDeployment,
+  MarketplaceListing,
 } from '../types';
 
 export enum OperationType {
@@ -198,7 +199,70 @@ export function subscribeToExhibits(callback: (exhibits: Record<string, Partial<
   );
 }
 
-// ================= CONTRACT DEPLOYMENTS (FIREBASE TESTNET) =================
+// ================= MARKETPLACE LISTINGS =================
+
+export async function createMarketplaceListing(listing: MarketplaceListing): Promise<void> {
+  const path = `marketplace_listings/${listing.id}`;
+  try {
+    await setDoc(doc(db, 'marketplace_listings', listing.id), {
+      id: listing.id,
+      itemId: listing.itemId,
+      title: listing.title,
+      imageUrl: listing.imageUrl || '',
+      itemType: listing.itemType,
+      price: listing.price,
+      sellerAddress: listing.sellerAddress,
+      status: 'ACTIVE',
+      createdAt: listing.createdAt,
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, path);
+  }
+}
+
+export async function buyMarketplaceListing(listingId: string, buyerAddress: string): Promise<void> {
+  const path = `marketplace_listings/${listingId}`;
+  try {
+    await updateDoc(doc(db, 'marketplace_listings', listingId), {
+      buyerAddress: buyerAddress,
+      status: 'SOLD',
+      soldAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function cancelMarketplaceListing(listingId: string): Promise<void> {
+  const path = `marketplace_listings/${listingId}`;
+  try {
+    await updateDoc(doc(db, 'marketplace_listings', listingId), {
+      status: 'CANCELLED',
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export function subscribeToMarketplaceListings(callback: (listings: MarketplaceListing[]) => void): Unsubscribe {
+  const path = 'marketplace_listings';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const items: MarketplaceListing[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push(docSnap.data() as MarketplaceListing);
+      });
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      callback(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  );
+}
+
+// ================= CONTRACT DEPLOYMENTS =================
 
 export async function saveContractDeployment(deployment: ContractDeployment): Promise<void> {
   const path = `contract_deployments/${deployment.id}`;

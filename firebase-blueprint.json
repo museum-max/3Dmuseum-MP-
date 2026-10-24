@@ -39,6 +39,25 @@
       },
       "required": ["id", "title", "artist", "likesCount"]
     },
+    "MarketplaceListing": {
+      "title": "MarketplaceListing",
+      "description": "P2P Marketplace listing to buy and sell NFTs and Museum Passes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "itemId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 128 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "itemType": { "type": "string", "enum": ["NFT", "MUSEUM_PASS"], "maxLength": 32 },
+        "price": { "type": "number" },
+        "sellerAddress": { "type": "string", "maxLength": 64 },
+        "buyerAddress": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["ACTIVE", "SOLD", "CANCELLED"], "maxLength": 32 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "soldAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "itemId", "title", "itemType", "price", "sellerAddress", "status", "createdAt"]
+    },
     "ContractDeployment": {
       "title": "ContractDeployment",
       "description": "Deployed ERC-721 or ERC-1155 Museum Pass contract instance on Firebase testnet",
@@ -98,6 +117,10 @@
     "/exhibits/{exhibitId}": {
       "schema": { "$ref": "#/entities/Exhibit" },
       "description": "Curated NFT exhibits, live metadata, verified blockchain owners, likes and bids"
+    },
+    "/marketplace_listings/{listingId}": {
+      "schema": { "$ref": "#/entities/MarketplaceListing" },
+      "description": "Open peer-to-peer marketplace listings for buying and selling NFTs and Museum Passes"
     },
     "/contract_deployments/{deploymentId}": {
       "schema": { "$ref": "#/entities/ContractDeployment" },

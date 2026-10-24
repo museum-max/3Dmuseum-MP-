@@ -5,6 +5,7 @@ import { BottomDock } from './components/BottomDock';
 import { ExhibitModal } from './components/ExhibitModal';
 import { MuseumPassModal } from './components/MuseumPassModal';
 import { ImportNftModal } from './components/ImportNftModal';
+import { MarketplaceModal } from './components/MarketplaceModal';
 import { GuestbookModal } from './components/GuestbookModal';
 import { TransactionLedgerModal } from './components/TransactionLedgerModal';
 import { MuseumScene } from './three/MuseumScene';
@@ -15,15 +16,19 @@ import {
   VisitorLogEntry,
   ChainTransaction,
   ContractDeployment,
+  MarketplaceListing,
+  NavigationMode,
 } from './types';
 import { SUPPORTED_NETWORKS } from './contracts/MuseumPassContract';
 import {
   subscribeToMuseumPasses,
   subscribeToExhibits,
   subscribeToDeployments,
+  subscribeToMarketplaceListings,
   subscribeToGuestbook,
   subscribeToTransactions,
   seedInitialExhibitIfMissing,
+  createMarketplaceListing,
 } from './firebase/service';
 import { sound } from './audio/soundEffects';
 
@@ -158,11 +163,14 @@ export default function App() {
   const [exhibits, setExhibits] = useState<ExhibitData[]>(INITIAL_EXHIBITS);
   const [activeExhibit, setActiveExhibit] = useState<ExhibitData | null>(null);
   const [hoveredExhibit, setHoveredExhibit] = useState<ExhibitData | null>(null);
+  const [nearbyExhibit, setNearbyExhibit] = useState<ExhibitData | null>(null);
+  const [navMode, setNavMode] = useState<NavigationMode>('WALK');
 
   // Modals
   const [passModalOpen, setPassModalOpen] = useState(false);
   const [passModalTab, setPassModalTab] = useState<'mint' | 'transfer' | 'deploy' | 'contract'>('mint');
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false);
   const [guestbookOpen, setGuestbookOpen] = useState(false);
   const [transactionsOpen, setTransactionsOpen] = useState(false);
 
@@ -170,6 +178,7 @@ export default function App() {
   const [guestbookEntries, setGuestbookEntries] = useState<VisitorLogEntry[]>([]);
   const [chainTransactions, setChainTransactions] = useState<ChainTransaction[]>([]);
   const [deployments, setDeployments] = useState<ContractDeployment[]>([]);
+  const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListing[]>([]);
 
   // Web3 Wallet & Pass State
   const [wallet, setWallet] = useState<WalletState>({
@@ -187,12 +196,10 @@ export default function App() {
     wallet.activePass?.tier === 'PATRON' || wallet.activePass?.tier === 'CURATOR';
 
   useEffect(() => {
-    // 1. Initial exhibit seeds
     INITIAL_EXHIBITS.forEach((ex) => {
       seedInitialExhibitIfMissing(ex).catch(() => {});
     });
 
-    // 2. Listen to Exhibits updates (metadata, likes, bids)
     const unsubExhibits = subscribeToExhibits((map) => {
       setExhibits((prev) => {
         const next = prev.map((item) => {
@@ -214,7 +221,6 @@ export default function App() {
       });
     });
 
-    // 3. Listen to Museum Passes
     const unsubPasses = subscribeToMuseumPasses((passes) => {
       const userOwned = passes.filter(
         (p) => p.ownerAddress.toLowerCase() === wallet.address.toLowerCase()
@@ -227,17 +233,55 @@ export default function App() {
       }));
     });
 
-    // 4. Listen to Contract Deployments
     const unsubDeployments = subscribeToDeployments((items) => {
       setDeployments(items);
     });
 
-    // 5. Listen to Guestbook
+    const unsubMarketplace = subscribeToMarketplaceListings((items) => {
+      setMarketplaceListings(items);
+
+      // Seed starter marketplace listings if collection is brand new
+      if (items.length === 0) {
+        const starterListings: MarketplaceListing[] = [
+          {
+            id: 'list-init-1',
+            itemId: 'nft-2',
+            title: 'Cybernetic Seraphim // #002',
+            itemType: 'NFT',
+            price: 1.85,
+            sellerAddress: '0x3cE47E648B47833e8aA6fa840Eb901B6305a4130',
+            status: 'ACTIVE',
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 'list-init-2',
+            itemId: 'nft-4',
+            title: 'Quantum Chronos // #004',
+            itemType: 'NFT',
+            price: 0.85,
+            sellerAddress: '0x19F301fD0A23Eb555A2F25a0bA0a3493E46FeE8D',
+            status: 'ACTIVE',
+            createdAt: new Date(Date.now() - 3600000).toISOString(),
+          },
+          {
+            id: 'list-init-3',
+            itemId: 'pass-sample',
+            title: 'Patron VIP Museum Pass #2042',
+            itemType: 'MUSEUM_PASS',
+            price: 0.05,
+            sellerAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+            status: 'ACTIVE',
+            createdAt: new Date(Date.now() - 7200000).toISOString(),
+          }
+        ];
+        starterListings.forEach((lst) => createMarketplaceListing(lst).catch(() => {}));
+      }
+    });
+
     const unsubGuestbook = subscribeToGuestbook((entries) => {
       setGuestbookEntries(entries);
     });
 
-    // 6. Listen to Transactions
     const unsubTx = subscribeToTransactions((txs) => {
       setChainTransactions(txs);
     });
@@ -246,12 +290,12 @@ export default function App() {
       unsubExhibits();
       unsubPasses();
       unsubDeployments();
+      unsubMarketplace();
       unsubGuestbook();
       unsubTx();
     };
   }, [wallet.address]);
 
-  // Sync 3D ownership whenever wallet or exhibits change
   useEffect(() => {
     if (sceneRef.current) {
       sceneRef.current.updateOwnershipState(wallet.address);
@@ -298,6 +342,23 @@ export default function App() {
     setHoveredExhibit(ex);
   };
 
+  const handleNearbyExhibit = (ex: ExhibitData | null) => {
+    setNearbyExhibit(ex);
+  };
+
+  const handleToggleNavMode = (mode: NavigationMode) => {
+    setNavMode(mode);
+    if (sceneRef.current) {
+      sceneRef.current.setNavigationMode(mode);
+    }
+  };
+
+  const handleVirtualKey = (key: string, pressed: boolean) => {
+    if (sceneRef.current) {
+      sceneRef.current.setVirtualKey(key, pressed);
+    }
+  };
+
   const handleJumpRoom = (room: 'rotunda' | 'renaissance' | 'cyberpunk' | 'vault') => {
     if (sceneRef.current) {
       sceneRef.current.jumpToRoom(room);
@@ -328,6 +389,7 @@ export default function App() {
       <MuseumCanvas
         onSelectExhibit={handleSelectExhibit}
         onHoverExhibit={handleHoverExhibit}
+        onNearbyExhibit={handleNearbyExhibit}
         onVaultDoorTrigger={handleVaultDoorTrigger}
         vaultUnlocked={vaultUnlocked}
         sceneRef={sceneRef}
@@ -341,6 +403,7 @@ export default function App() {
           setPassModalOpen(true);
         }}
         onOpenImportModal={() => setImportModalOpen(true)}
+        onOpenMarketplace={() => setMarketplaceOpen(true)}
         onOpenGuestbook={() => setGuestbookOpen(true)}
         onOpenTransactions={() => setTransactionsOpen(true)}
         onConnectWallet={handleConnectWallet}
@@ -355,8 +418,13 @@ export default function App() {
           setPassModalOpen(true);
         }}
         onOpenImportModal={() => setImportModalOpen(true)}
+        onOpenMarketplace={() => setMarketplaceOpen(true)}
+        onToggleNavMode={handleToggleNavMode}
+        onVirtualKey={handleVirtualKey}
         activeExhibit={currentActiveExhibitData}
         hoveredExhibit={hoveredExhibit}
+        nearbyExhibit={nearbyExhibit}
+        navMode={navMode}
         vaultUnlocked={vaultUnlocked}
       />
 
@@ -384,6 +452,16 @@ export default function App() {
         onUpdateWallet={setWallet}
         initialTab={passModalTab}
         deployments={deployments}
+      />
+
+      {/* Decentralized P2P Marketplace Modal */}
+      <MarketplaceModal
+        isOpen={marketplaceOpen}
+        onClose={() => setMarketplaceOpen(false)}
+        listings={marketplaceListings}
+        wallet={wallet}
+        onUpdateWallet={setWallet}
+        exhibits={exhibits}
       />
 
       {/* Curate & Display NFT Modal */}

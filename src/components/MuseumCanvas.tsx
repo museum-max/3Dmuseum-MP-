@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { MuseumScene } from '../three/MuseumScene';
-import { ExhibitData } from '../types';
+import { ExhibitData, NavigationMode } from '../types';
 
 interface MuseumCanvasProps {
   onSelectExhibit: (exhibit: ExhibitData | null) => void;
   onHoverExhibit: (exhibit: ExhibitData | null) => void;
   onVaultDoorTrigger?: () => void;
+  onNearbyExhibit?: (exhibit: ExhibitData | null) => void;
+  onModeChange?: (mode: NavigationMode) => void;
   vaultUnlocked: boolean;
   sceneRef: React.MutableRefObject<MuseumScene | null>;
 }
@@ -14,6 +16,8 @@ export const MuseumCanvas: React.FC<MuseumCanvasProps> = ({
   onSelectExhibit,
   onHoverExhibit,
   onVaultDoorTrigger,
+  onNearbyExhibit,
+  onModeChange,
   vaultUnlocked,
   sceneRef,
 }) => {
@@ -26,6 +30,8 @@ export const MuseumCanvas: React.FC<MuseumCanvasProps> = ({
       onSelectExhibit,
       onHoverExhibit,
       onVaultDoorTrigger,
+      onNearbyExhibit,
+      onModeChange,
     });
 
     sceneRef.current = sceneInstance;
