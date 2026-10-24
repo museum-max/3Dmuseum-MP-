@@ -1,0 +1,6 @@
+{
+  "name": "Aetheria: 3D NFT Museum & Museum Pass (MP)",
+  "description": "An immersive 3D architectural virtual museum exhibiting curated digital NFT art collections with Ethereum testnet Museum Pass (MP) smart contract integration and Firebase decentralized registry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

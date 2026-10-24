@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidPass(data) {
+      return data.keys().hasAll(['id', 'tokenId', 'ownerAddress', 'tier', 'mintTime', 'txHash']) &&
+             data.keys().hasOnly(['id', 'tokenId', 'ownerAddress', 'tier', 'mintTime', 'txHash', 'network', 'tokenURI']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.tokenId is string && data.tokenId.size() <= 64 &&
+             data.ownerAddress is string && data.ownerAddress.size() <= 64 &&
+             data.tier in ['STANDARD', 'PATRON', 'CURATOR'] &&
+             data.mintTime is string && data.mintTime.size() <= 64 &&
+             data.txHash is string && data.txHash.size() <= 128;
+    }
+
+    function isValidExhibit(data) {
+      return data.keys().hasAll(['id', 'title', 'artist', 'likesCount']) &&
+             data.keys().hasOnly([
+               'id', 'title', 'artist', 'description', 'imageUrl',
+               'ownerAddress', 'creatorAddress', 'contractAddress', 'tokenId',
+               'rarity', 'edition', 'currentBid', 'likesCount', 'bidsCount', 'updatedAt'
+             ]) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 128 &&
+             data.artist is string && data.artist.size() <= 128 &&
+             data.likesCount is number && data.likesCount >= 0;
+    }
+
+    function isValidDeployment(data) {
+      return data.keys().hasAll(['id', 'contractAddress', 'name', 'symbol', 'standard', 'deployer', 'txHash', 'deployedAt']) &&
+             data.keys().hasOnly(['id', 'contractAddress', 'name', 'symbol', 'standard', 'deployer', 'txHash', 'deployedAt', 'totalSupply']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.contractAddress is string && data.contractAddress.size() <= 64 &&
+             data.name is string && data.name.size() <= 64 &&
+             data.symbol is string && data.symbol.size() <= 16 &&
+             data.standard in ['ERC-721', 'ERC-1155'] &&
+             data.deployer is string && data.deployer.size() <= 64 &&
+             data.txHash is string && data.txHash.size() <= 128 &&
+             data.deployedAt is string && data.deployedAt.size() <= 64;
+    }
+
+    function isValidGuestbook(data) {
+      return data.keys().hasAll(['id', 'address', 'nickname', 'message', 'timestamp']) &&
+             data.keys().hasOnly(['id', 'address', 'nickname', 'message', 'timestamp', 'passTier']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.address is string && data.address.size() <= 64 &&
+             data.nickname is string && data.nickname.size() <= 64 &&
+             data.message is string && data.message.size() <= 280 &&
+             data.timestamp is string && data.timestamp.size() <= 64;
+    }
+
+    function isValidTx(data) {
+      return data.keys().hasAll(['id', 'txHash', 'method', 'from', 'status', 'timestamp']) &&
+             data.keys().hasOnly(['id', 'txHash', 'method', 'from', 'to', 'tier', 'tokenId', 'status', 'timestamp', 'gasUsed', 'blockNumber']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.txHash is string && data.txHash.size() <= 128 &&
+             data.method is string && data.method.size() <= 64 &&
+             data.from is string && data.from.size() <= 64 &&
+             data.status is string && data.status.size() <= 32 &&
+             data.timestamp is string && data.timestamp.size() <= 64;
+    }
+
+    // Museum Passes collection (Creation and Ownership Transfer)
+    match /museum_passes/{passId} {
+      allow read: if true;
+      allow create: if isValidId(passId) && isValidPass(request.resource.data);
+      allow update: if isValidId(passId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerAddress', 'txHash']) &&
+        request.resource.data.ownerAddress is string &&
+        request.resource.data.ownerAddress.size() <= 64;
+      allow delete: if false;
+    }
+
+    // Exhibits collection (curation, metadata sync, likes and bids)
+    match /exhibits/{exhibitId} {
+      allow read: if true;
+      allow create: if isValidId(exhibitId) && isValidExhibit(request.resource.data);
+      allow update: if isValidId(exhibitId) && (
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']) &&
+         request.resource.data.likesCount is number &&
+         request.resource.data.likesCount >= resource.data.likesCount) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentBid', 'bidsCount', 'updatedAt']) &&
+         request.resource.data.currentBid is number &&
+         request.resource.data.bidsCount is number) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'artist', 'description', 'imageUrl', 'ownerAddress', 'updatedAt']) &&
+         isValidExhibit(request.resource.data))
+      );
+      allow delete: if false;
+    }
+
+    // Deployed Smart Contracts on Firebase Testnet
+    match /contract_deployments/{deploymentId} {
+      allow read: if true;
+      allow create: if isValidId(deploymentId) && isValidDeployment(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Visitor Guestbook
+    match /guestbook/{entryId} {
+      allow read: if true;
+      allow create: if isValidId(entryId) && isValidGuestbook(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Indexed Blockchain Transactions & Transfer Logs
+    match /transactions/{txId} {
+      allow read: if true;
+      allow create: if isValidId(txId) && isValidTx(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Connection probe path
+    match /test/{docId} {
+      allow read: if true;
+    }
+  }
+}

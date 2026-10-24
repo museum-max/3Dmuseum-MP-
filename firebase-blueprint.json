@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "MuseumPass": {
+      "title": "MuseumPass",
+      "description": "Minted Museum Pass (MP) NFT token record on blockchain testnet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "tokenId": { "type": "string", "maxLength": 64 },
+        "ownerAddress": { "type": "string", "maxLength": 64 },
+        "tier": { "type": "string", "enum": ["STANDARD", "PATRON", "CURATOR"], "maxLength": 32 },
+        "mintTime": { "type": "string", "maxLength": 64 },
+        "txHash": { "type": "string", "maxLength": 128 },
+        "network": { "type": "string", "maxLength": 64 },
+        "tokenURI": { "type": "string", "maxLength": 256 }
+      },
+      "required": ["id", "tokenId", "ownerAddress", "tier", "mintTime", "txHash"]
+    },
+    "Exhibit": {
+      "title": "Exhibit",
+      "description": "NFT art piece exhibited in the 3D museum gallery with metadata and verified ownership",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 128 },
+        "artist": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "ownerAddress": { "type": "string", "maxLength": 64 },
+        "creatorAddress": { "type": "string", "maxLength": 64 },
+        "contractAddress": { "type": "string", "maxLength": 64 },
+        "tokenId": { "type": "string", "maxLength": 64 },
+        "rarity": { "type": "string", "maxLength": 32 },
+        "edition": { "type": "string", "maxLength": 32 },
+        "currentBid": { "type": "number" },
+        "likesCount": { "type": "number" },
+        "bidsCount": { "type": "number" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "title", "artist", "likesCount"]
+    },
+    "ContractDeployment": {
+      "title": "ContractDeployment",
+      "description": "Deployed ERC-721 or ERC-1155 Museum Pass contract instance on Firebase testnet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "contractAddress": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 64 },
+        "symbol": { "type": "string", "maxLength": 16 },
+        "standard": { "type": "string", "enum": ["ERC-721", "ERC-1155"], "maxLength": 16 },
+        "deployer": { "type": "string", "maxLength": 64 },
+        "txHash": { "type": "string", "maxLength": 128 },
+        "deployedAt": { "type": "string", "maxLength": 64 },
+        "totalSupply": { "type": "number" }
+      },
+      "required": ["id", "contractAddress", "name", "symbol", "standard", "deployer", "txHash", "deployedAt"]
+    },
+    "VisitorEntry": {
+      "title": "VisitorEntry",
+      "description": "Visitor guestbook and check-in verified by Museum Pass",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "address": { "type": "string", "maxLength": 64 },
+        "nickname": { "type": "string", "maxLength": 64 },
+        "passTier": { "type": "string", "maxLength": 32 },
+        "message": { "type": "string", "maxLength": 280 },
+        "timestamp": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "address", "nickname", "message", "timestamp"]
+    },
+    "ChainTx": {
+      "title": "ChainTx",
+      "description": "Indexed blockchain testnet transaction log for Museum Pass contracts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "txHash": { "type": "string", "maxLength": 128 },
+        "method": { "type": "string", "maxLength": 64 },
+        "from": { "type": "string", "maxLength": 64 },
+        "to": { "type": "string", "maxLength": 64 },
+        "tier": { "type": "string", "maxLength": 32 },
+        "tokenId": { "type": "string", "maxLength": 64 },
+        "gasUsed": { "type": "string", "maxLength": 64 },
+        "blockNumber": { "type": "number" },
+        "status": { "type": "string", "maxLength": 32 },
+        "timestamp": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "txHash", "method", "from", "status", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/museum_passes/{passId}": {
+      "schema": { "$ref": "#/entities/MuseumPass" },
+      "description": "Collection of minted Museum Pass tokens, ownership and credentials"
+    },
+    "/exhibits/{exhibitId}": {
+      "schema": { "$ref": "#/entities/Exhibit" },
+      "description": "Curated NFT exhibits, live metadata, verified blockchain owners, likes and bids"
+    },
+    "/contract_deployments/{deploymentId}": {
+      "schema": { "$ref": "#/entities/ContractDeployment" },
+      "description": "Deployed Museum Pass smart contracts on the Firebase testnet"
+    },
+    "/guestbook/{entryId}": {
+      "schema": { "$ref": "#/entities/VisitorEntry" },
+      "description": "Museum visitor guestbook entries"
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/ChainTx" },
+      "description": "Verified testnet transaction records and token transfer logs"
+    }
+  }
+}
