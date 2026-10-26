@@ -26,6 +26,7 @@ export interface MuseumSceneCallbacks {
   onNearbyExhibit?: (exhibit: ExhibitData | null) => void;
   onModeChange?: (mode: NavigationMode) => void;
   onPlayerTransform?: (transform: PlayerTransform) => void;
+  onXrStateChange?: (isPresenting: boolean) => void;
 }
 
 interface ExhibitMeshRecord {
@@ -44,9 +45,19 @@ export class MuseumScene {
   private callbacks: MuseumSceneCallbacks;
   private isSoftwareGl: boolean = false;
 
-  private animationFrameId: number = 0;
   private isDisposed: boolean = false;
   private timer = new THREE.Timer();
+
+  // WebXR Rig & Controller state
+  public userRig = new THREE.Group();
+  public xrController0: THREE.XRTargetRaySpace | null = null;
+  public xrController1: THREE.XRTargetRaySpace | null = null;
+  public xrGrip0: THREE.XRGripSpace | null = null;
+  public xrGrip1: THREE.XRGripSpace | null = null;
+  public xrTeleportReticle: THREE.Mesh | null = null;
+  private floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  private xrRaycaster = new THREE.Raycaster();
+  private xrTempMatrix = new THREE.Matrix4();
 
   // Navigation Mode (ORBIT or WALK)
   private navMode: NavigationMode = 'WALK';
@@ -122,7 +133,16 @@ export class MuseumScene {
     this.renderer.shadowMap.enabled = !this.isSoftwareGl;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+    // Enable WebXR support on WebGLRenderer
+    this.renderer.xr.enabled = true;
+
     container.appendChild(this.renderer.domElement);
+
+    // Setup WebXR user rig (parent container for VR headset tracking & teleportation)
+    this.userRig.position.set(0, 0, 0);
+    this.userRig.add(this.camera);
+    this.scene.add(this.userRig);
+    this.setupWebXR();
 
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -139,7 +159,7 @@ export class MuseumScene {
     }
 
     this.tick = this.tick.bind(this);
-    this.tick();
+    this.renderer.setAnimationLoop(this.tick);
   }
 
   private buildLighting() {
@@ -1913,7 +1933,9 @@ export class MuseumScene {
       this.planetNetwork.update(delta, elapsed, this.camera.position);
     }
 
-    if (this.navMode === 'WALK') {
+    if (this.renderer.xr.isPresenting) {
+      this.updateXrControllers(elapsed);
+    } else if (this.navMode === 'WALK') {
       this.updateWalkPhysics(delta);
     } else {
       // ORBIT Mode Camera Damping
@@ -1931,13 +1953,297 @@ export class MuseumScene {
 
     this.emitPlayerTransform();
     this.renderer.render(this.scene, this.camera);
-    this.animationFrameId = requestAnimationFrame(this.tick);
+  }
+
+  // ================= WEBXR CONTROLLERS, TELEPORT & INTERACTIVITY =================
+
+  private setupWebXR() {
+    // Controller 0 (Primary / Right hand)
+    this.xrController0 = this.renderer.xr.getController(0);
+    this.xrController0.addEventListener('selectstart', () => this.onXrSelectStart(0));
+    this.userRig.add(this.xrController0);
+
+    // Controller 1 (Secondary / Left hand)
+    this.xrController1 = this.renderer.xr.getController(1);
+    this.xrController1.addEventListener('selectstart', () => this.onXrSelectStart(1));
+    this.userRig.add(this.xrController1);
+
+    // Controller Grips with procedural 3D model
+    this.xrGrip0 = this.renderer.xr.getControllerGrip(0);
+    this.xrGrip0.add(this.createProceduralControllerModel('#38bdf8'));
+    this.userRig.add(this.xrGrip0);
+
+    this.xrGrip1 = this.renderer.xr.getControllerGrip(1);
+    this.xrGrip1.add(this.createProceduralControllerModel('#f59e0b'));
+    this.userRig.add(this.xrGrip1);
+
+    // Procedural laser pointer rays
+    const laserBeamGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -8),
+    ]);
+    const laserBeamMat = new THREE.LineBasicMaterial({
+      color: '#38bdf8',
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const laserLine0 = new THREE.Line(laserBeamGeo, laserBeamMat);
+    laserLine0.name = 'laser';
+    this.xrController0.add(laserLine0);
+
+    const laserLine1 = new THREE.Line(laserBeamGeo, laserBeamMat.clone());
+    laserLine1.name = 'laser';
+    this.xrController1.add(laserLine1);
+
+    // Floor Teleportation Reticle
+    const reticleGeo = new THREE.RingGeometry(0.28, 0.35, 32);
+    reticleGeo.rotateX(-Math.PI / 2);
+    const reticleMat = new THREE.MeshBasicMaterial({
+      color: '#38bdf8',
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+    });
+    this.xrTeleportReticle = new THREE.Mesh(reticleGeo, reticleMat);
+    this.xrTeleportReticle.position.set(0, 0.02, 0);
+    this.xrTeleportReticle.visible = false;
+    this.scene.add(this.xrTeleportReticle);
+
+    // WebXR Session lifecycle listeners
+    this.renderer.xr.addEventListener('sessionstart', () => {
+      sound.playInspect();
+      // Anchor user rig to player's current floor coordinates
+      this.userRig.position.set(this.camera.position.x, 0, this.camera.position.z);
+      if (this.callbacks.onXrStateChange) {
+        this.callbacks.onXrStateChange(true);
+      }
+    });
+
+    this.renderer.xr.addEventListener('sessionend', () => {
+      sound.playClick();
+      // Restore desktop camera position from user rig location
+      this.camera.position.set(this.userRig.position.x, 1.7, this.userRig.position.z);
+      if (this.xrTeleportReticle) {
+        this.xrTeleportReticle.visible = false;
+      }
+      if (this.callbacks.onXrStateChange) {
+        this.callbacks.onXrStateChange(false);
+      }
+    });
+  }
+
+  private createProceduralControllerModel(accentColor: string): THREE.Group {
+    const group = new THREE.Group();
+    // Ergonomic handle
+    const handleGeo = new THREE.CylinderGeometry(0.016, 0.02, 0.12, 16);
+    const handleMat = new THREE.MeshStandardMaterial({
+      color: '#0f172a',
+      roughness: 0.3,
+      metalness: 0.8,
+    });
+    const handle = new THREE.Mesh(handleGeo, handleMat);
+    handle.rotation.x = -Math.PI / 5;
+    handle.position.set(0, -0.03, 0.02);
+    group.add(handle);
+
+    // Tracking sensor ring
+    const ringGeo = new THREE.TorusGeometry(0.045, 0.006, 12, 24);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: accentColor,
+      emissive: accentColor,
+      emissiveIntensity: 0.65,
+      roughness: 0.2,
+      metalness: 0.9,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 4;
+    ring.position.set(0, 0.015, -0.04);
+    group.add(ring);
+
+    return group;
+  }
+
+  private updateXrControllers(elapsed: number) {
+    if (!this.renderer.xr.isPresenting) return;
+
+    // Use primary controller for pointer raycasting
+    const activeController = this.xrController0 || this.xrController1;
+    if (!activeController) return;
+
+    this.xrTempMatrix.identity().extractRotation(activeController.matrixWorld);
+    this.xrRaycaster.ray.origin.setFromMatrixPosition(activeController.matrixWorld);
+    this.xrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.xrTempMatrix);
+
+    // Check interaction with exhibits and planet nodes
+    const intersects = this.xrRaycaster.intersectObjects(this.interactiveObjects, false);
+    if (intersects.length > 0) {
+      if (this.xrTeleportReticle) this.xrTeleportReticle.visible = false;
+      return;
+    }
+
+    // Raycast against floor plane for teleportation
+    const floorIntersection = new THREE.Vector3();
+    if (this.xrRaycaster.ray.intersectPlane(this.floorPlane, floorIntersection)) {
+      if (this.xrTeleportReticle) {
+        // Clamp within museum walls
+        const clampedX = Math.max(-20, Math.min(20, floorIntersection.x));
+        const minZ = this.isVaultUnlocked ? -22 : -14.2;
+        const clampedZ = Math.max(minZ, Math.min(20, floorIntersection.z));
+
+        this.xrTeleportReticle.position.set(clampedX, 0.02, clampedZ);
+        this.xrTeleportReticle.visible = true;
+        this.xrTeleportReticle.rotation.z = elapsed * 1.5;
+      }
+    } else {
+      if (this.xrTeleportReticle) this.xrTeleportReticle.visible = false;
+    }
+
+    // Thumbstick Locomotion in WebXR
+    const session = this.renderer.xr.getSession();
+    if (session && session.inputSources) {
+      for (const source of session.inputSources) {
+        if (source.gamepad && source.gamepad.axes.length >= 2) {
+          const [axX, axY] = source.gamepad.axes.slice(-2);
+          if (Math.abs(axX) > 0.15 || Math.abs(axY) > 0.15) {
+            const speed = 0.075;
+            const xrCam = this.renderer.xr.getCamera();
+            const forward = new THREE.Vector3();
+            xrCam.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+
+            const right = new THREE.Vector3();
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+            this.userRig.position.addScaledVector(forward, -axY * speed);
+            this.userRig.position.addScaledVector(right, axX * speed);
+
+            this.userRig.position.x = Math.max(-20, Math.min(20, this.userRig.position.x));
+            const minZ = this.isVaultUnlocked ? -22 : -14.2;
+            this.userRig.position.z = Math.max(minZ, Math.min(20, this.userRig.position.z));
+          }
+        }
+      }
+    }
+  }
+
+  private onXrSelectStart(controllerIdx: number) {
+    const controller = controllerIdx === 0 ? this.xrController0 : this.xrController1;
+    if (!controller) return;
+
+    this.xrTempMatrix.identity().extractRotation(controller.matrixWorld);
+    this.xrRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    this.xrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.xrTempMatrix);
+
+    // 1. Raycast against exhibits and planetary nodes
+    const intersects = this.xrRaycaster.intersectObjects(this.interactiveObjects, false);
+    if (intersects.length > 0) {
+      const hitObj = intersects[0].object;
+      if (this.planetNetwork) {
+        const nodeHit = this.planetNetwork.getIntersectedNode(hitObj);
+        if (nodeHit) {
+          if (nodeHit.isCore) {
+            this.focusCorePlanet();
+            const coreEx = this.exhibitRecords.find((m) => m.data.id === 'nft-world-connector');
+            if (coreEx) this.callbacks.onSelectExhibit(coreEx.data);
+          } else if (nodeHit.chain) {
+            sound.playClick();
+            if (this.callbacks.onSelectCryptoChain) {
+              this.callbacks.onSelectCryptoChain(nodeHit.chain);
+            }
+          }
+          this.triggerHaptic(controllerIdx, 0.6, 50);
+          return;
+        }
+      }
+
+      let hit = this.exhibitRecords.find((m) => m.collider === hitObj);
+      if (!hit) {
+        const wallMatch = this.wallColliders.find((w) => w.collider === hitObj);
+        if (wallMatch) {
+          hit = this.exhibitRecords.find((m) => m.data.id === wallMatch.exhibitId);
+        }
+      }
+      if (hit) {
+        this.focusExhibit(hit.data);
+        this.triggerHaptic(controllerIdx, 0.8, 60);
+        return;
+      }
+    }
+
+    // 2. Teleport to reticle position on the floor
+    if (this.xrTeleportReticle && this.xrTeleportReticle.visible) {
+      sound.playClick();
+      this.userRig.position.set(
+        this.xrTeleportReticle.position.x,
+        0,
+        this.xrTeleportReticle.position.z
+      );
+      this.triggerHaptic(controllerIdx, 0.5, 40);
+    }
+  }
+
+  private triggerHaptic(controllerIdx: number, intensity: number, duration: number) {
+    const session = this.renderer.xr.getSession();
+    if (!session || !session.inputSources) return;
+    const source = session.inputSources[controllerIdx];
+    if (source && source.gamepad && source.gamepad.hapticActuators && source.gamepad.hapticActuators[0]) {
+      try {
+        (source.gamepad.hapticActuators[0] as { pulse: (v: number, d: number) => void }).pulse(intensity, duration);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // --- Public WebXR Session API ---
+
+  public async isXrSupported(): Promise<boolean> {
+    if (typeof navigator !== 'undefined' && 'xr' in navigator && navigator.xr) {
+      try {
+        return await navigator.xr.isSessionSupported('immersive-vr');
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  public async enterXr(): Promise<boolean> {
+    if (typeof navigator === 'undefined' || !navigator.xr) return false;
+    try {
+      const session = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+      });
+      await this.renderer.xr.setSession(session);
+      return true;
+    } catch (e) {
+      console.warn('WebXR session request error:', e);
+      return false;
+    }
+  }
+
+  public async exitXr(): Promise<void> {
+    const session = this.renderer.xr.getSession();
+    if (session) {
+      await session.end();
+    }
+  }
+
+  public isXrPresenting(): boolean {
+    return this.renderer.xr.isPresenting;
+  }
+
+  public getRenderer(): THREE.WebGLRenderer {
+    return this.renderer;
   }
 
   public dispose() {
     this.isDisposed = true;
     this.playerListeners.clear();
-    cancelAnimationFrame(this.animationFrameId);
+    this.renderer.setAnimationLoop(null);
     window.removeEventListener('resize', this.onResize.bind(this));
     this.timer.dispose();
 
