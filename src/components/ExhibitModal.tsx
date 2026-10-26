@@ -45,6 +45,7 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
   const [bidAmount, setBidAmount] = useState((exhibit.currentBid + 0.1).toFixed(2));
   const [isBidding, setIsBidding] = useState(false);
   const [bidSuccess, setBidSuccess] = useState(false);
+  const [bidError, setBidError] = useState<string | null>(null);
   const [hasLiked, setHasLiked] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -53,6 +54,7 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
   const [transferRecipient, setTransferRecipient] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferSuccess, setTransferSuccess] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   // Verification check
   const { isOwner, ownerAddress } = verifyOwnership(exhibit, wallet.address);
@@ -62,7 +64,7 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
     sound.playClick();
     setHasLiked(true);
     try {
-      await incrementExhibitLike(exhibit.id);
+      await incrementExhibitLike(exhibit.id, exhibit);
     } catch (err) {
       console.error('Like sync error:', err);
     }
@@ -70,9 +72,10 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
 
   const handleBidSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBidError(null);
     const parsed = parseFloat(bidAmount);
     if (isNaN(parsed) || parsed <= exhibit.currentBid) {
-      alert(`Bid must be greater than current bid (${exhibit.currentBid} ETH)`);
+      setBidError(`Bid must be greater than current bid (${exhibit.currentBid} ETH)`);
       return;
     }
 
@@ -80,7 +83,7 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
     sound.playClick();
 
     try {
-      await placeExhibitBidOnFirestore(exhibit.id, parsed);
+      await placeExhibitBidOnFirestore(exhibit.id, parsed, exhibit);
 
       const txHash = generateMockTxHash();
       await logChainTransaction({
@@ -99,7 +102,7 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
       setTimeout(() => setBidSuccess(false), 3000);
     } catch (err) {
       console.error('Bid error:', err);
-      alert('Failed to record bid to Firestore ledger.');
+      setBidError('Failed to record bid to testnet Firestore ledger.');
     } finally {
       setIsBidding(false);
     }
@@ -107,8 +110,9 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
 
   const handleTransferNft = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTransferError(null);
     if (!transferRecipient.trim() || !transferRecipient.startsWith('0x')) {
-      alert('Please enter a valid Ethereum hex address (0x...)');
+      setTransferError('Please enter a valid Ethereum hex address (0x...)');
       return;
     }
 
@@ -145,7 +149,7 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
       }, 2500);
     } catch (err) {
       console.error('Transfer error:', err);
-      alert('Failed to execute NFT transfer on testnet.');
+      setTransferError('Failed to execute NFT transfer on testnet.');
     } finally {
       setIsTransferring(false);
     }
@@ -196,11 +200,17 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
 
           <div className="my-6 relative">
             {exhibit.imageUrl ? (
-              <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-amber-400 shadow-2xl relative">
+              <div
+                className="w-48 max-w-full aspect-[3/2] rounded-2xl overflow-hidden border-2 shadow-2xl relative bg-slate-950"
+                style={{
+                  borderColor: exhibit.accentColor || '#f97316',
+                  boxShadow: `0 0 30px ${exhibit.accentColor || '#f97316'}45`,
+                }}
+              >
                 <img
                   src={exhibit.imageUrl}
                   alt={exhibit.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                 />
               </div>
             ) : (
@@ -334,6 +344,11 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
                     <span>{isTransferring ? 'Broadcasting...' : 'Execute Transfer'}</span>
                   </button>
                 </div>
+                {transferError && (
+                  <p className="text-[11px] text-rose-400 font-mono">
+                    ⚠ {transferError}
+                  </p>
+                )}
                 {transferSuccess && (
                   <p className="text-[11px] text-emerald-400 font-mono">
                     ✓ Ownership successfully transferred to {formatAddress(transferRecipient)}!
@@ -345,6 +360,53 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
             <p className="text-xs text-slate-300 leading-relaxed">
               {exhibit.description}
             </p>
+
+            {/* IPFS Token URI Link */}
+            {exhibit.tokenURI && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-sky-950/40 border border-sky-500/30 text-xs font-mono">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[10px] font-bold uppercase tracking-wider">
+                    IPFS
+                  </span>
+                  <span className="text-slate-300 text-[11px] truncate">
+                    {exhibit.tokenURI}
+                  </span>
+                </div>
+                <a
+                  href={`https://ipfs.io/ipfs/${exhibit.tokenURI.replace('ipfs://', '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sky-400 hover:text-sky-200 transition-colors shrink-0 ml-2"
+                  title="View on IPFS Gateway"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            )}
+
+            {/* On-Chain Attributes / Metadata Traits */}
+            {exhibit.attributes && exhibit.attributes.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">
+                  Verified NFT Traits ({exhibit.attributes.length})
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {exhibit.attributes.map((attr, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2 rounded-xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center"
+                    >
+                      <span className="text-[9px] uppercase font-mono tracking-wider text-sky-400 truncate">
+                        {attr.trait_type}
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-100 font-mono truncate mt-0.5">
+                        {String(attr.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tags */}
             <div className="flex flex-wrap gap-1.5 pt-1">
@@ -448,6 +510,11 @@ export const ExhibitModal: React.FC<ExhibitModalProps> = ({
               </button>
             </div>
 
+            {bidError && (
+              <p className="text-xs text-rose-400 font-mono">
+                ⚠ {bidError}
+              </p>
+            )}
             {bidSuccess && (
               <p className="text-xs text-emerald-400 flex items-center gap-1 font-mono">
                 <Check className="w-3.5 h-3.5" /> High bid broadcasted to testnet and synced with Firebase!

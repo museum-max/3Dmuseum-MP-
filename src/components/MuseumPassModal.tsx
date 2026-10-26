@@ -59,6 +59,7 @@ export const MuseumPassModal: React.FC<MuseumPassModalProps> = ({
   const [selectedTier, setSelectedTier] = useState<PassTier>('PATRON');
   const [isMinting, setIsMinting] = useState(false);
   const [mintSuccess, setMintSuccess] = useState<MuseumPass | null>(null);
+  const [mintError, setMintError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [faucetClaimed, setFaucetClaimed] = useState(false);
@@ -68,6 +69,7 @@ export const MuseumPassModal: React.FC<MuseumPassModalProps> = ({
   const [transferRecipient, setTransferRecipient] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferSuccess, setTransferSuccess] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   // Deployment State
   const [deployStandard, setDeployStandard] = useState<'ERC-721' | 'ERC-1155'>('ERC-721');
@@ -75,6 +77,7 @@ export const MuseumPassModal: React.FC<MuseumPassModalProps> = ({
   const [deploySymbol, setDeploySymbol] = useState('MP');
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploySuccess, setDeploySuccess] = useState<ContractDeployment | null>(null);
+  const [deployError, setDeployError] = useState<string | null>(null);
 
   // Contract Code Tab
   const [codeStandard, setCodeStandard] = useState<'ERC-721' | 'ERC-1155'>('ERC-721');
@@ -83,8 +86,9 @@ export const MuseumPassModal: React.FC<MuseumPassModalProps> = ({
   const userPasses = wallet.ownedPasses.length > 0 ? wallet.ownedPasses : (wallet.activePass ? [wallet.activePass] : []);
 
   const handleMintPass = async () => {
+    setMintError(null);
     if (wallet.balanceETH < tierInfo.priceETH) {
-      alert(`Insufficient testnet funds (${wallet.balanceETH.toFixed(2)} ${wallet.network.currency}). Use the Testnet Faucet below to claim free testnet tokens!`);
+      setMintError(`Insufficient testnet funds (${wallet.balanceETH.toFixed(2)} ${wallet.network.currency}). Use the Testnet Faucet below to claim free testnet tokens!`);
       return;
     }
 
@@ -139,7 +143,7 @@ export const MuseumPassModal: React.FC<MuseumPassModalProps> = ({
       setMintSuccess(newPass);
     } catch (err) {
       console.error('Minting error:', err);
-      alert('Error recording pass mint to Firebase.');
+      setMintError('Error recording pass mint to Firebase.');
     } finally {
       setIsMinting(false);
     }
@@ -147,14 +151,15 @@ export const MuseumPassModal: React.FC<MuseumPassModalProps> = ({
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTransferError(null);
     if (!transferRecipient.trim() || !transferRecipient.startsWith('0x')) {
-      alert('Please enter a valid Ethereum hex address (0x...)');
+      setTransferError('Please enter a valid Ethereum hex address (0x...)');
       return;
     }
 
     const passToTransfer = userPasses.find((p) => p.id === selectedPassId) || userPasses[0];
     if (!passToTransfer) {
-      alert('No pass available to transfer.');
+      setTransferError('No pass available to transfer.');
       return;
     }
 

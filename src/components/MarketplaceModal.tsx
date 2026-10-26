@@ -56,6 +56,8 @@ export const MarketplaceModal: React.FC<MarketplaceModalProps> = ({
   const [sellPrice, setSellPrice] = useState('0.15');
   const [isListing, setIsListing] = useState(false);
   const [listSuccess, setListSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Buy State
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
@@ -87,9 +89,10 @@ export const MarketplaceModal: React.FC<MarketplaceModalProps> = ({
 
   const handleCreateListing = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     const priceNum = parseFloat(sellPrice);
     if (isNaN(priceNum) || priceNum <= 0) {
-      alert('Please enter a valid price in ETH.');
+      setFormError('Please enter a valid price in ETH.');
       return;
     }
 
@@ -212,7 +215,7 @@ export const MarketplaceModal: React.FC<MarketplaceModalProps> = ({
       });
     } catch (err) {
       console.error('Purchase error:', err);
-      alert('Failed to complete purchase.');
+      setActionError('Failed to complete purchase on testnet.');
     } finally {
       setPurchasingId(null);
     }

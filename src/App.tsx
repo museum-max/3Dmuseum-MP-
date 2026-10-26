@@ -8,6 +8,11 @@ import { ImportNftModal } from './components/ImportNftModal';
 import { MarketplaceModal } from './components/MarketplaceModal';
 import { GuestbookModal } from './components/GuestbookModal';
 import { TransactionLedgerModal } from './components/TransactionLedgerModal';
+import { MiniMap } from './components/MiniMap';
+import { MobileControls } from './components/MobileControls';
+import { WalletModal } from './components/WalletModal';
+import { CryptoChainModal } from './components/CryptoChainModal';
+import { CryptoChainInfo } from './three/cryptoLogos';
 import { MuseumScene } from './three/MuseumScene';
 import {
   ExhibitData,
@@ -34,24 +39,96 @@ import { sound } from './audio/soundEffects';
 
 const INITIAL_EXHIBITS: ExhibitData[] = [
   {
+    id: 'nft-genesis',
+    title: 'WORLD core — Genesis #001',
+    artist: 'WORLD core Foundation',
+    creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+    contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    tokenId: '001',
+    imageUrl: '/assets/aistudio/Futuristic_Chrome_World_Core_Emblem_4fe37529.png',
+    tokenURI: 'ipfs://YOUR_IMAGE_CID/world-core-genesis-001.png',
+    description: 'The first genesis artwork of WORLD core, featuring a luminous blue digital Earth, polished metallic silver lettering, and chrome orbital rings.',
+    rarity: 'Mythic',
+    edition: 'Genesis #001 (Founder Edition)',
+    tags: ['WORLD core Genesis', 'Genesis', 'Electric Blue and Silver', '3D Metallic', 'Founder Edition'],
+    attributes: [
+      { trait_type: 'Collection', value: 'WORLD core Genesis' },
+      { trait_type: 'Edition', value: 'Genesis' },
+      { trait_type: 'Color', value: 'Electric Blue and Silver' },
+      { trait_type: 'Style', value: '3D Metallic' },
+      { trait_type: 'Edition Type', value: 'Founder Edition' },
+    ],
+    currentBid: 4.80,
+    bidsCount: 24,
+    likesCount: 512,
+    position: [6.6, 0, -12.5],
+    rotation: [0, 0, 0],
+    room: 'rotunda',
+    accentColor: '#38bdf8',
+  },
+  {
+    id: 'nft-world-connector',
+    title: 'WORLD core — The Connector of All Crypto',
+    artist: 'WORLD core Foundation',
+    creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+    contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    tokenId: '002',
+    imageUrl: '/assets/aistudio/world-core-connector-001.png',
+    tokenURI: 'ipfs://REPLACE_WITH_YOUR_IMAGE_CID',
+    description: 'A futuristic WORLD core genesis artwork representing the vision of connecting the crypto ecosystem through one global digital world.',
+    rarity: 'Mythic',
+    edition: 'Genesis Concept (One World, All Chains)',
+    tags: [
+      'WORLD core Genesis',
+      'The Connector of All Crypto',
+      'One World, All Chains',
+      'Futuristic 3D Metallic',
+      'Electric Blue',
+      'Genesis Concept',
+    ],
+    attributes: [
+      { trait_type: 'Collection', value: 'WORLD core Genesis' },
+      { trait_type: 'Theme', value: 'The Connector of All Crypto' },
+      { trait_type: 'Vision', value: 'One World, All Chains' },
+      { trait_type: 'Style', value: 'Futuristic 3D Metallic' },
+      { trait_type: 'Primary Color', value: 'Electric Blue' },
+      { trait_type: 'Edition', value: 'Genesis Concept' },
+    ],
+    currentBid: 5.40,
+    bidsCount: 31,
+    likesCount: 684,
+    position: [13.8, 0, -12.5],
+    rotation: [0, 0, 0],
+    room: 'rotunda',
+    accentColor: '#38bdf8',
+  },
+  {
     id: 'nft-1',
-    title: 'Genesis Monolith // #001',
-    artist: 'Satoshi Algorists',
+    title: 'KUPAL Graffiti',
+    artist: 'Street Art Syndicate',
     creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
     ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
     contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
     tokenId: '1',
-    description: 'A mathematical singularity encoded into autonomous recursive geometry. The primary genesis artifact of the museum.',
+    imageUrl: '/assets/aistudio/KUPAL_Graffiti_on_Concrete_87cdb948.png',
+    description: 'Urban graffiti artwork with bold orange and yellow lettering, black shadows, blue paint splashes, and a crown on a concrete wall.',
     rarity: 'Mythic',
-    edition: '1 of 1',
-    tags: ['Generative', 'Sacred Math', 'On-Chain'],
-    currentBid: 2.45,
-    bidsCount: 14,
-    likesCount: 128,
-    position: [0, 0, 0],
+    edition: '1 of 1 Masterpiece',
+    tags: ['KUPAL', 'graffiti', 'street art', 'urban art', 'spray paint'],
+    attributes: [
+      { trait_type: 'Medium', value: 'Spray Paint on Concrete' },
+      { trait_type: 'Style', value: 'Urban Street Art' },
+      { trait_type: 'Series', value: 'Syndicate Murals' },
+    ],
+    currentBid: 3.45,
+    bidsCount: 18,
+    likesCount: 342,
+    position: [-8, 0, -12.5],
     rotation: [0, 0, 0],
     room: 'rotunda',
-    accentColor: '#38bdf8',
+    accentColor: '#f97316',
   },
   {
     id: 'nft-2',
@@ -166,6 +243,10 @@ export default function App() {
   const [nearbyExhibit, setNearbyExhibit] = useState<ExhibitData | null>(null);
   const [navMode, setNavMode] = useState<NavigationMode>('WALK');
 
+  // Selected & Hovered Crypto Chains from Planetary CORE Network
+  const [selectedChain, setSelectedChain] = useState<CryptoChainInfo | null>(null);
+  const [hoveredChain, setHoveredChain] = useState<CryptoChainInfo | null>(null);
+
   // Modals
   const [passModalOpen, setPassModalOpen] = useState(false);
   const [passModalTab, setPassModalTab] = useState<'mint' | 'transfer' | 'deploy' | 'contract'>('mint');
@@ -173,6 +254,7 @@ export default function App() {
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
   const [guestbookOpen, setGuestbookOpen] = useState(false);
   const [transactionsOpen, setTransactionsOpen] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
 
   // Firestore-synced data
   const [guestbookEntries, setGuestbookEntries] = useState<VisitorLogEntry[]>([]);
@@ -302,36 +384,9 @@ export default function App() {
     }
   }, [wallet.address, exhibits]);
 
-  const handleConnectWallet = async () => {
+  const handleConnectWallet = () => {
     sound.playClick();
-    if (typeof window !== 'undefined' && (window as unknown as { ethereum?: { request: (args: { method: string }) => Promise<string[]> } }).ethereum) {
-      try {
-        const eth = (window as unknown as { ethereum: { request: (args: { method: string }) => Promise<string[]> } }).ethereum;
-        const accounts = await eth.request({ method: 'eth_requestAccounts' });
-        if (accounts && accounts.length > 0) {
-          setWallet((prev) => ({
-            ...prev,
-            address: accounts[0],
-            isSimulated: false,
-          }));
-        }
-      } catch (err) {
-        console.debug('MetaMask fallback:', err);
-      }
-    } else {
-      const mockAccounts = [
-        '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
-        '0x3cE47E648B47833e8aA6fa840Eb901B6305a4130',
-        '0x8A72F67c132899479b12d5d852c00a0E341B442A',
-      ];
-      const nextIdx = (mockAccounts.indexOf(wallet.address) + 1) % mockAccounts.length;
-      setWallet((prev) => ({
-        ...prev,
-        address: mockAccounts[nextIdx],
-        activePass: null,
-        ownedPasses: [],
-      }));
-    }
+    setWalletModalOpen(true);
   };
 
   const handleSelectExhibit = (ex: ExhibitData | null) => {
@@ -389,11 +444,29 @@ export default function App() {
       <MuseumCanvas
         onSelectExhibit={handleSelectExhibit}
         onHoverExhibit={handleHoverExhibit}
+        onSelectCryptoChain={(chain) => setSelectedChain(chain)}
+        onHoverCryptoChain={(chain) => setHoveredChain(chain)}
         onNearbyExhibit={handleNearbyExhibit}
         onVaultDoorTrigger={handleVaultDoorTrigger}
         vaultUnlocked={vaultUnlocked}
         sceneRef={sceneRef}
       />
+
+      {/* Hovered Crypto Chain Floating HUD Pill */}
+      {hoveredChain && (
+        <div className="absolute top-16 sm:top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-900/95 border border-cyan-500/60 shadow-xl shadow-cyan-500/25 backdrop-blur-md animate-in fade-in duration-150">
+          <div
+            className="w-3.5 h-3.5 rounded-full ring-2 ring-white/40 shadow-sm"
+            style={{ backgroundColor: hoveredChain.color }}
+          />
+          <span className="text-xs font-mono font-bold text-white">
+            {hoveredChain.name} ({hoveredChain.symbol})
+          </span>
+          <span className="text-[11px] text-cyan-300 font-mono">
+            • {hoveredChain.category} • Click Node to Inspect
+          </span>
+        </div>
+      )}
 
       {/* Top Header Layer */}
       <TopBar
@@ -407,6 +480,33 @@ export default function App() {
         onOpenGuestbook={() => setGuestbookOpen(true)}
         onOpenTransactions={() => setTransactionsOpen(true)}
         onConnectWallet={handleConnectWallet}
+        onFocusCorePlanet={() => {
+          if (sceneRef.current) {
+            sceneRef.current.focusCorePlanet();
+          }
+        }}
+      />
+
+      {/* 2D Floor-Plan Mini-Map Viewport Overlay */}
+      <MiniMap
+        sceneRef={sceneRef}
+        exhibits={exhibits}
+        activeExhibit={currentActiveExhibitData}
+        onSelectExhibit={handleSelectExhibit}
+        vaultUnlocked={vaultUnlocked}
+        navMode={navMode}
+      />
+
+      {/* Tactile Mobile Touch Controls (Analog Joystick, Sprint & Actions) */}
+      <MobileControls
+        sceneRef={sceneRef}
+        navMode={navMode}
+        onToggleNavMode={handleToggleNavMode}
+        nearbyExhibit={nearbyExhibit}
+        onSelectExhibit={handleSelectExhibit}
+        onJumpRoom={handleJumpRoom}
+        onResetView={handleResetView}
+        vaultUnlocked={vaultUnlocked}
       />
 
       {/* Collapsible Viewport-First Bottom Dock */}
@@ -491,6 +591,31 @@ export default function App() {
         onClose={() => setTransactionsOpen(false)}
         transactions={chainTransactions}
         wallet={wallet}
+      />
+
+      {/* Web3 Wallet & Testnet Account Manager Modal */}
+      <WalletModal
+        isOpen={walletModalOpen}
+        onClose={() => setWalletModalOpen(false)}
+        wallet={wallet}
+        onUpdateWallet={setWallet}
+      />
+
+      {/* Crypto Chain Satellite Inspection Modal */}
+      <CryptoChainModal
+        chain={selectedChain}
+        onClose={() => setSelectedChain(null)}
+        onTeleportToCore={() => {
+          if (sceneRef.current) {
+            sceneRef.current.focusCorePlanet();
+          }
+        }}
+        onInspectGenesisWall={() => {
+          const genesisEx = exhibits.find((e) => e.id === 'nft-world-connector') || exhibits.find((e) => e.id === 'nft-genesis');
+          if (genesisEx && sceneRef.current) {
+            sceneRef.current.focusExhibit(genesisEx);
+          }
+        }}
       />
     </div>
   );

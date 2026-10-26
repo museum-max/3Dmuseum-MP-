@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   onSnapshot,
@@ -118,23 +119,29 @@ export function subscribeToMuseumPasses(callback: (passes: MuseumPass[]) => void
 export async function seedInitialExhibitIfMissing(exhibit: ExhibitData): Promise<void> {
   const path = `exhibits/${exhibit.id}`;
   try {
-    await setDoc(doc(db, 'exhibits', exhibit.id), {
-      id: exhibit.id,
-      title: exhibit.title,
-      artist: exhibit.artist,
-      description: exhibit.description,
-      currentBid: exhibit.currentBid,
-      likesCount: exhibit.likesCount,
-      bidsCount: exhibit.bidsCount,
-      creatorAddress: exhibit.creatorAddress,
-      ownerAddress: exhibit.ownerAddress || exhibit.creatorAddress,
-      contractAddress: exhibit.contractAddress || '0x8A72F67c132899479b12d5d852c00a0E341B442A',
-      tokenId: exhibit.tokenId || exhibit.id.replace('nft-', ''),
-      imageUrl: exhibit.imageUrl || '',
-      rarity: exhibit.rarity,
-      edition: exhibit.edition,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    const docRef = doc(db, 'exhibits', exhibit.id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      await setDoc(docRef, {
+        id: exhibit.id,
+        title: exhibit.title,
+        artist: exhibit.artist,
+        description: exhibit.description,
+        currentBid: exhibit.currentBid,
+        likesCount: exhibit.likesCount,
+        bidsCount: exhibit.bidsCount,
+        creatorAddress: exhibit.creatorAddress,
+        ownerAddress: exhibit.ownerAddress || exhibit.creatorAddress,
+        contractAddress: exhibit.contractAddress || '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        tokenId: exhibit.tokenId || exhibit.id.replace('nft-', ''),
+        imageUrl: exhibit.imageUrl || '',
+        tokenURI: exhibit.tokenURI || '',
+        attributes: exhibit.attributes || [],
+        rarity: exhibit.rarity,
+        edition: exhibit.edition,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   } catch (err) {
     console.debug('Exhibit init sync:', err);
   }
@@ -158,25 +165,73 @@ export async function updateExhibitMetadata(exhibitId: string, data: Partial<Exh
   }
 }
 
-export async function incrementExhibitLike(exhibitId: string): Promise<void> {
+export async function incrementExhibitLike(exhibitId: string, fallbackData?: ExhibitData): Promise<void> {
   const path = `exhibits/${exhibitId}`;
   try {
-    await updateDoc(doc(db, 'exhibits', exhibitId), {
-      likesCount: increment(1)
-    });
+    const docRef = doc(db, 'exhibits', exhibitId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      await updateDoc(docRef, {
+        likesCount: increment(1)
+      });
+    } else if (fallbackData) {
+      await setDoc(docRef, {
+        id: exhibitId,
+        title: fallbackData.title,
+        artist: fallbackData.artist,
+        description: fallbackData.description,
+        currentBid: fallbackData.currentBid,
+        likesCount: (fallbackData.likesCount || 0) + 1,
+        bidsCount: fallbackData.bidsCount || 0,
+        creatorAddress: fallbackData.creatorAddress,
+        ownerAddress: fallbackData.ownerAddress || fallbackData.creatorAddress,
+        contractAddress: fallbackData.contractAddress || '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        tokenId: fallbackData.tokenId || exhibitId.replace('nft-', ''),
+        imageUrl: fallbackData.imageUrl || '',
+        tokenURI: fallbackData.tokenURI || '',
+        attributes: fallbackData.attributes || [],
+        rarity: fallbackData.rarity,
+        edition: fallbackData.edition,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);
   }
 }
 
-export async function placeExhibitBidOnFirestore(exhibitId: string, newBid: number): Promise<void> {
+export async function placeExhibitBidOnFirestore(exhibitId: string, newBid: number, fallbackData?: ExhibitData): Promise<void> {
   const path = `exhibits/${exhibitId}`;
   try {
-    await updateDoc(doc(db, 'exhibits', exhibitId), {
-      currentBid: newBid,
-      bidsCount: increment(1),
-      updatedAt: new Date().toISOString()
-    });
+    const docRef = doc(db, 'exhibits', exhibitId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      await updateDoc(docRef, {
+        currentBid: newBid,
+        bidsCount: increment(1),
+        updatedAt: new Date().toISOString()
+      });
+    } else if (fallbackData) {
+      await setDoc(docRef, {
+        id: exhibitId,
+        title: fallbackData.title,
+        artist: fallbackData.artist,
+        description: fallbackData.description,
+        currentBid: newBid,
+        likesCount: fallbackData.likesCount || 0,
+        bidsCount: (fallbackData.bidsCount || 0) + 1,
+        creatorAddress: fallbackData.creatorAddress,
+        ownerAddress: fallbackData.ownerAddress || fallbackData.creatorAddress,
+        contractAddress: fallbackData.contractAddress || '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        tokenId: fallbackData.tokenId || exhibitId.replace('nft-', ''),
+        imageUrl: fallbackData.imageUrl || '',
+        tokenURI: fallbackData.tokenURI || '',
+        attributes: fallbackData.attributes || [],
+        rarity: fallbackData.rarity,
+        edition: fallbackData.edition,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);
   }

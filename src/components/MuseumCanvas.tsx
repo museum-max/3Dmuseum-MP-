@@ -1,10 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { MuseumScene } from '../three/MuseumScene';
 import { ExhibitData, NavigationMode } from '../types';
+import { CryptoChainInfo } from '../three/cryptoLogos';
 
 interface MuseumCanvasProps {
   onSelectExhibit: (exhibit: ExhibitData | null) => void;
   onHoverExhibit: (exhibit: ExhibitData | null) => void;
+  onSelectCryptoChain?: (chain: CryptoChainInfo | null) => void;
+  onHoverCryptoChain?: (chain: CryptoChainInfo | null) => void;
   onVaultDoorTrigger?: () => void;
   onNearbyExhibit?: (exhibit: ExhibitData | null) => void;
   onModeChange?: (mode: NavigationMode) => void;
@@ -15,6 +18,8 @@ interface MuseumCanvasProps {
 export const MuseumCanvas: React.FC<MuseumCanvasProps> = ({
   onSelectExhibit,
   onHoverExhibit,
+  onSelectCryptoChain,
+  onHoverCryptoChain,
   onVaultDoorTrigger,
   onNearbyExhibit,
   onModeChange,
@@ -29,6 +34,8 @@ export const MuseumCanvas: React.FC<MuseumCanvasProps> = ({
     const sceneInstance = new MuseumScene(mountRef.current, {
       onSelectExhibit,
       onHoverExhibit,
+      onSelectCryptoChain,
+      onHoverCryptoChain,
       onVaultDoorTrigger,
       onNearbyExhibit,
       onModeChange,

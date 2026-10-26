@@ -49,7 +49,9 @@ export const BottomDock: React.FC<BottomDockProps> = ({
   navMode,
   vaultUnlocked,
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768
+  );
   const [activeTab, setActiveTab] = useState<'rotunda' | 'renaissance' | 'cyberpunk' | 'vault'>('rotunda');
 
   useEffect(() => {
@@ -88,41 +90,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
         </div>
       )}
 
-      {/* Virtual Touch D-Pad for Mobile Walking */}
-      {navMode === 'WALK' && (
-        <div className="fixed bottom-28 left-4 z-30 pointer-events-auto flex flex-col items-center gap-1 sm:hidden opacity-80 select-none">
-          <button
-            onPointerDown={() => onVirtualKey('w', true)}
-            onPointerUp={() => onVirtualKey('w', false)}
-            className="w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-700 text-white flex items-center justify-center active:bg-amber-500 active:text-slate-950"
-          >
-            <ArrowUp className="w-5 h-5" />
-          </button>
-          <div className="flex gap-1">
-            <button
-              onPointerDown={() => onVirtualKey('a', true)}
-              onPointerUp={() => onVirtualKey('a', false)}
-              className="w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-700 text-white flex items-center justify-center active:bg-amber-500 active:text-slate-950"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <button
-              onPointerDown={() => onVirtualKey('s', true)}
-              onPointerUp={() => onVirtualKey('s', false)}
-              className="w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-700 text-white flex items-center justify-center active:bg-amber-500 active:text-slate-950"
-            >
-              <ArrowDown className="w-5 h-5" />
-            </button>
-            <button
-              onPointerDown={() => onVirtualKey('d', true)}
-              onPointerUp={() => onVirtualKey('d', false)}
-              className="w-10 h-10 rounded-xl bg-slate-900/90 border border-slate-700 text-white flex items-center justify-center active:bg-amber-500 active:text-slate-950"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* Main Bottom Dock */}
       <div

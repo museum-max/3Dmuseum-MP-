@@ -111,7 +111,70 @@ export function createProceduralNftCanvas(id: string, maxAnisotropy: number = 8)
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  if (id === 'nft-1') {
+  if (id === 'nft-genesis') {
+    // WORLD core — Genesis #001: Luminous blue Earth, chrome orbital rings & silver lettering
+    const bg = ctx.createRadialGradient(size / 2, size / 2, 20, size / 2, size / 2, size / 1.2);
+    bg.addColorStop(0, '#0284c7');
+    bg.addColorStop(0.35, '#0369a1');
+    bg.addColorStop(0.7, '#082f49');
+    bg.addColorStop(1, '#020617');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, size, size);
+
+    const cx = size / 2;
+    const cy = size / 2;
+
+    // Glowing Digital Globe with latitude/longitude grid
+    ctx.save();
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 25;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 220, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (let r = 40; r < 220; r += 35) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r, 220, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    for (let r = 40; r < 220; r += 35) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 220, r, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Chrome Orbital Rings
+    ctx.save();
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.lineWidth = 6;
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 340, 110, Math.PI / 6, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 360, 130, -Math.PI / 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Metallic typography
+    ctx.font = '900 48px monospace';
+    ctx.fillStyle = '#f8fafc';
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 24;
+    ctx.textAlign = 'center';
+    ctx.fillText('WORLD CORE', cx, cy + 290);
+
+    ctx.font = 'bold 24px monospace';
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('GENESIS #001 — FOUNDER EDITION', cx, cy + 330);
+  } else if (id === 'nft-1') {
     // Genesis Monolith: Generative Neon Sacred Code
     const bg = ctx.createRadialGradient(size / 2, size / 2, 10, size / 2, size / 2, size / 1.4);
     bg.addColorStop(0, '#1e1b4b');

@@ -27,7 +27,8 @@ service cloud.firestore {
              data.keys().hasOnly([
                'id', 'title', 'artist', 'description', 'imageUrl',
                'ownerAddress', 'creatorAddress', 'contractAddress', 'tokenId',
-               'rarity', 'edition', 'currentBid', 'likesCount', 'bidsCount', 'updatedAt'
+               'rarity', 'edition', 'currentBid', 'likesCount', 'bidsCount', 'updatedAt',
+               'tokenURI', 'attributes'
              ]) &&
              data.id is string && data.id.size() <= 128 &&
              data.title is string && data.title.size() <= 128 &&
@@ -99,12 +100,13 @@ service cloud.firestore {
       allow create: if isValidId(exhibitId) && isValidExhibit(request.resource.data);
       allow update: if isValidId(exhibitId) && (
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount']) &&
-         request.resource.data.likesCount is number &&
-         request.resource.data.likesCount >= resource.data.likesCount) ||
+         request.resource.data.likesCount is number) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'updatedAt']) &&
+         request.resource.data.likesCount is number) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentBid', 'bidsCount', 'updatedAt']) &&
          request.resource.data.currentBid is number &&
          request.resource.data.bidsCount is number) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'artist', 'description', 'imageUrl', 'ownerAddress', 'updatedAt']) &&
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'artist', 'description', 'imageUrl', 'ownerAddress', 'updatedAt', 'tokenURI', 'attributes']) &&
          isValidExhibit(request.resource.data))
       );
       allow delete: if false;

@@ -2,6 +2,15 @@ export type PassTier = 'STANDARD' | 'PATRON' | 'CURATOR';
 
 export type NavigationMode = 'ORBIT' | 'WALK';
 
+export interface PlayerTransform {
+  x: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  room: 'rotunda' | 'renaissance' | 'cyberpunk' | 'vault' | 'entrance';
+  navMode: NavigationMode;
+}
+
 export interface MuseumPass {
   id: string;
   tokenId: string;
@@ -35,6 +44,7 @@ export interface ExhibitData {
   rotation: [number, number, number];
   room: 'rotunda' | 'renaissance' | 'cyberpunk' | 'vault';
   accentColor: string;
+  attributes?: { trait_type: string; value: string | number }[];
   updatedAt?: string;
 }
 

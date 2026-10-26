@@ -6,8 +6,10 @@ import {
   createPedestalBumpTexture,
   createProceduralNftCanvas,
 } from './proceduralArt';
-import { ExhibitData, NavigationMode } from '../types';
+import { ExhibitData, NavigationMode, PlayerTransform } from '../types';
 import { sound } from '../audio/soundEffects';
+import { WorldCorePlanetNetwork } from './WorldCorePlanetNetwork';
+import { CryptoChainInfo } from './cryptoLogos';
 
 const _vec3 = new THREE.Vector3();
 const _moveDir = new THREE.Vector3();
@@ -18,9 +20,12 @@ const _pointer = new THREE.Vector2();
 export interface MuseumSceneCallbacks {
   onSelectExhibit: (exhibit: ExhibitData | null) => void;
   onHoverExhibit: (exhibit: ExhibitData | null) => void;
+  onSelectCryptoChain?: (chain: CryptoChainInfo | null) => void;
+  onHoverCryptoChain?: (chain: CryptoChainInfo | null) => void;
   onVaultDoorTrigger?: () => void;
   onNearbyExhibit?: (exhibit: ExhibitData | null) => void;
   onModeChange?: (mode: NavigationMode) => void;
+  onPlayerTransform?: (transform: PlayerTransform) => void;
 }
 
 interface ExhibitMeshRecord {
@@ -57,16 +62,21 @@ export class MuseumScene {
   // Interactive targets
   private exhibitRecords: ExhibitMeshRecord[] = [];
   private interactiveObjects: THREE.Object3D[] = [];
+  private wallColliders: { collider: THREE.Object3D; exhibitId: string }[] = [];
   private kineticSculptures: THREE.Group[] = [];
   private vaultDoors: { left: THREE.Mesh; right: THREE.Mesh; openAmount: number; targetOpen: number } | null = null;
   private currentConnectedAddress: string = '';
   private isVaultUnlocked: boolean = false;
+  private playerListeners: Set<(transform: PlayerTransform) => void> = new Set();
+  private planetNetwork: WorldCorePlanetNetwork | null = null;
 
   // Camera damping state for Orbit mode
   private cameraTargetPosition = new THREE.Vector3(0, 1.7, 7.5);
   private cameraTargetLookAt = new THREE.Vector3(0, 1.5, 0);
   private cameraCurrentLookAt = new THREE.Vector3(0, 1.5, 0);
-  private isUserInteracting = false;
+  private activeLookPointerId: number | null = null;
+  private virtualJoystickVector = { x: 0, y: 0 };
+  private isVirtualSprint = false;
   private pointerDownPos = { x: 0, y: 0 };
   private spherical = { radius: 8, theta: 0, phi: Math.PI / 2.2 };
   private activeExhibit: ExhibitData | null = null;
@@ -246,6 +256,10 @@ export class MuseumScene {
 
     this.scene.add(oculusGroup);
 
+    // Central WORLD CORE Planetary Network Monument with 12 Mini Crypto Logo Satellites
+    this.planetNetwork = new WorldCorePlanetNetwork(this.scene, this.isSoftwareGl);
+    this.interactiveObjects.push(...this.planetNetwork.interactiveObjects);
+
     const wallMat = new THREE.MeshStandardMaterial({
       color: '#0f172a',
       roughness: 0.7,
@@ -263,11 +277,23 @@ export class MuseumScene {
     northWallLeft.receiveShadow = !this.isSoftwareGl;
     this.scene.add(northWallLeft);
 
-    const northWallRight = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 0.8), wallMat);
-    northWallRight.position.set(8, 3, -15);
+    const northWallRight = new THREE.Mesh(new THREE.BoxGeometry(16, 6, 0.8), wallMat);
+    northWallRight.position.set(10.8, 3, -15);
     northWallRight.castShadow = !this.isSoftwareGl;
     northWallRight.receiveShadow = !this.isSoftwareGl;
     this.scene.add(northWallRight);
+
+    const eastWall = new THREE.Mesh(new THREE.BoxGeometry(0.8, 6, 30), wallMat);
+    eastWall.position.set(18.8, 3, 0);
+    eastWall.castShadow = !this.isSoftwareGl;
+    eastWall.receiveShadow = !this.isSoftwareGl;
+    this.scene.add(eastWall);
+
+    const westWall = new THREE.Mesh(new THREE.BoxGeometry(0.8, 6, 30), wallMat);
+    westWall.position.set(-18.8, 3, 0);
+    westWall.castShadow = !this.isSoftwareGl;
+    westWall.receiveShadow = !this.isSoftwareGl;
+    this.scene.add(westWall);
 
     const archHeader = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.8, 0.9), goldWallTrimMat);
     archHeader.position.set(0, 5.1, -15);
@@ -301,6 +327,299 @@ export class MuseumScene {
     const portalRing = new THREE.Mesh(portalRingGeo, portalRingMat);
     portalRing.position.set(0, 2.2, -14.8);
     this.scene.add(portalRing);
+
+    // Architectural Street Art Concrete Wall Mural: "KUPAL Graffiti"
+    const muralGeo = new THREE.PlaneGeometry(6.4, 4.26);
+    const textureLoader = new THREE.TextureLoader();
+    const graffitiTex = textureLoader.load('/assets/aistudio/KUPAL_Graffiti_on_Concrete_87cdb948.png');
+    graffitiTex.colorSpace = THREE.SRGBColorSpace;
+    graffitiTex.anisotropy = maxAnisotropy;
+
+    const muralMat = new THREE.MeshStandardMaterial({
+      map: graffitiTex,
+      roughness: 0.88,
+      metalness: 0.08,
+    });
+    const muralMesh = new THREE.Mesh(muralGeo, muralMat);
+    muralMesh.position.set(-8, 3.1, -14.58);
+    muralMesh.receiveShadow = !this.isSoftwareGl;
+    this.scene.add(muralMesh);
+
+    // Architectural Bronze Trim Frame
+    const frameBorderMat = new THREE.MeshStandardMaterial({
+      color: '#d97706',
+      roughness: 0.25,
+      metalness: 0.85,
+    });
+    const muralFrameTop = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.12, 0.12), frameBorderMat);
+    muralFrameTop.position.set(-8, 5.29, -14.55);
+    this.scene.add(muralFrameTop);
+
+    const muralFrameBottom = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.12, 0.12), frameBorderMat);
+    muralFrameBottom.position.set(-8, 0.91, -14.55);
+    this.scene.add(muralFrameBottom);
+
+    const muralFrameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.12, 4.4, 0.12), frameBorderMat);
+    muralFrameLeft.position.set(-11.25, 3.1, -14.55);
+    this.scene.add(muralFrameLeft);
+
+    const muralFrameRight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 4.4, 0.12), frameBorderMat);
+    muralFrameRight.position.set(-4.75, 3.1, -14.55);
+    this.scene.add(muralFrameRight);
+
+    // Dedicated high-intensity museum spotlight illuminating the graffiti mural
+    const muralSpotLight = new THREE.SpotLight('#fed7aa', 5.5, 20, Math.PI / 4, 0.4);
+    muralSpotLight.position.set(-8, 5.8, -10.5);
+    muralSpotLight.target = muralMesh;
+    this.scene.add(muralSpotLight);
+
+    // Interactive Wall Collider for KUPAL Graffiti
+    const kupalWallCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(6.6, 4.5, 0.8),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    kupalWallCollider.position.set(-8, 3.1, -14.4);
+    this.scene.add(kupalWallCollider);
+    this.interactiveObjects.push(kupalWallCollider);
+    this.wallColliders.push({ collider: kupalWallCollider, exhibitId: 'nft-1' });
+
+    // Architectural Futuristic Masterpiece Wall Installation: "WORLD core — Genesis #001" (1:1 Square Masterpiece)
+    const worldCoreGeo = new THREE.PlaneGeometry(3.8, 3.8);
+    const worldCoreTex = textureLoader.load('/assets/aistudio/Futuristic_Chrome_World_Core_Emblem_4fe37529.png');
+    worldCoreTex.colorSpace = THREE.SRGBColorSpace;
+    worldCoreTex.anisotropy = maxAnisotropy;
+
+    const worldCoreMat = new THREE.MeshStandardMaterial({
+      map: worldCoreTex,
+      roughness: 0.18,
+      metalness: 0.45,
+    });
+    const worldCoreMesh = new THREE.Mesh(worldCoreGeo, worldCoreMat);
+    worldCoreMesh.position.set(6.6, 3.1, -14.58);
+    worldCoreMesh.receiveShadow = !this.isSoftwareGl;
+    this.scene.add(worldCoreMesh);
+
+    // Frame materials
+    const chromeFrameMat = new THREE.MeshStandardMaterial({
+      color: '#f8fafc',
+      roughness: 0.08,
+      metalness: 0.98,
+    });
+    const cyberGlowBezelMat = new THREE.MeshStandardMaterial({
+      color: '#38bdf8',
+      emissive: '#0284c7',
+      emissiveIntensity: 0.85,
+      roughness: 0.15,
+      metalness: 0.9,
+    });
+
+    // Genesis #001 - Outer Chrome Frame (4.08m x 4.08m)
+    const wcFrameTop = new THREE.Mesh(new THREE.BoxGeometry(4.08, 0.14, 0.14), chromeFrameMat);
+    wcFrameTop.position.set(6.6, 5.07, -14.54);
+    this.scene.add(wcFrameTop);
+
+    const wcFrameBottom = new THREE.Mesh(new THREE.BoxGeometry(4.08, 0.14, 0.14), chromeFrameMat);
+    wcFrameBottom.position.set(6.6, 1.13, -14.54);
+    this.scene.add(wcFrameBottom);
+
+    const wcFrameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.14, 4.08, 0.14), chromeFrameMat);
+    wcFrameLeft.position.set(4.63, 3.1, -14.54);
+    this.scene.add(wcFrameLeft);
+
+    const wcFrameRight = new THREE.Mesh(new THREE.BoxGeometry(0.14, 4.08, 0.14), chromeFrameMat);
+    wcFrameRight.position.set(8.57, 3.1, -14.54);
+    this.scene.add(wcFrameRight);
+
+    // Genesis #001 - Inner Glowing Electric Blue Neon Bezel (3.84m x 3.84m)
+    const wcBezelTop = new THREE.Mesh(new THREE.BoxGeometry(3.84, 0.04, 0.06), cyberGlowBezelMat);
+    wcBezelTop.position.set(6.6, 5.02, -14.55);
+    this.scene.add(wcBezelTop);
+
+    const wcBezelBottom = new THREE.Mesh(new THREE.BoxGeometry(3.84, 0.04, 0.06), cyberGlowBezelMat);
+    wcBezelBottom.position.set(6.6, 1.18, -14.55);
+    this.scene.add(wcBezelBottom);
+
+    const wcBezelLeft = new THREE.Mesh(new THREE.BoxGeometry(0.04, 3.84, 0.06), cyberGlowBezelMat);
+    wcBezelLeft.position.set(4.68, 3.1, -14.55);
+    this.scene.add(wcBezelLeft);
+
+    const wcBezelRight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 3.84, 0.06), cyberGlowBezelMat);
+    wcBezelRight.position.set(8.52, 3.1, -14.55);
+    this.scene.add(wcBezelRight);
+
+    // Dedicated high-intensity spotlight for Genesis #001
+    const worldCoreSpotLight = new THREE.SpotLight('#bae6fd', 6.5, 22, Math.PI / 4, 0.35);
+    worldCoreSpotLight.position.set(6.6, 5.8, -10.5);
+    worldCoreSpotLight.target = worldCoreMesh;
+    this.scene.add(worldCoreSpotLight);
+
+    // Subtle electric blue ambient wall glow wash
+    const worldCoreAmbientGlow = new THREE.PointLight('#38bdf8', 2.2, 7);
+    worldCoreAmbientGlow.position.set(6.6, 3.1, -14.3);
+    this.scene.add(worldCoreAmbientGlow);
+
+    // Museum Wall Placard for WORLD core — Genesis #001
+    const plaqueCanvas = document.createElement('canvas');
+    plaqueCanvas.width = 512;
+    plaqueCanvas.height = 256;
+    const pctx = plaqueCanvas.getContext('2d')!;
+    pctx.fillStyle = '#090d16';
+    pctx.fillRect(0, 0, 512, 256);
+    pctx.strokeStyle = '#38bdf8';
+    pctx.lineWidth = 6;
+    pctx.strokeRect(6, 6, 500, 244);
+
+    pctx.fillStyle = '#38bdf8';
+    pctx.font = 'bold 28px monospace';
+    pctx.fillText('WORLD CORE — GENESIS #001', 24, 60);
+
+    pctx.fillStyle = '#f1f5f9';
+    pctx.font = '20px monospace';
+    pctx.fillText('WORLD CORE FOUNDATION • FOUNDER EDITION', 24, 110);
+
+    pctx.fillStyle = '#94a3b8';
+    pctx.font = '16px monospace';
+    pctx.fillText('STYLE: 3D METALLIC // COLOR: BLUE & SILVER', 24, 155);
+
+    pctx.fillStyle = '#f59e0b';
+    pctx.font = '14px monospace';
+    pctx.fillText('IPFS: world-core-genesis-001.png', 24, 205);
+
+    const plaqueTex = new THREE.CanvasTexture(plaqueCanvas);
+    plaqueTex.colorSpace = THREE.SRGBColorSpace;
+
+    const plaqueMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.6, 0.8),
+      new THREE.MeshStandardMaterial({
+        map: plaqueTex,
+        roughness: 0.3,
+        metalness: 0.7,
+      })
+    );
+    plaqueMesh.position.set(6.6, 0.45, -14.56);
+    this.scene.add(plaqueMesh);
+
+    // Interactive Wall Collider for WORLD core — Genesis #001
+    const wcWallCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(4.2, 4.2, 0.8),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    wcWallCollider.position.set(6.6, 3.1, -14.3);
+    this.scene.add(wcWallCollider);
+    this.interactiveObjects.push(wcWallCollider);
+    this.wallColliders.push({ collider: wcWallCollider, exhibitId: 'nft-genesis' });
+
+    // Architectural Futuristic Masterpiece Wall Installation: "WORLD core — The Connector of All Crypto" (1:1 Square Masterpiece)
+    const connectorGeo = new THREE.PlaneGeometry(3.8, 3.8);
+    const connectorTex = textureLoader.load('/assets/aistudio/world-core-connector-001.png');
+    connectorTex.colorSpace = THREE.SRGBColorSpace;
+    connectorTex.anisotropy = maxAnisotropy;
+
+    const connectorMat = new THREE.MeshStandardMaterial({
+      map: connectorTex,
+      roughness: 0.18,
+      metalness: 0.45,
+    });
+    const connectorMesh = new THREE.Mesh(connectorGeo, connectorMat);
+    connectorMesh.position.set(13.8, 3.1, -14.58);
+    connectorMesh.receiveShadow = !this.isSoftwareGl;
+    this.scene.add(connectorMesh);
+
+    // Connector - Outer Chrome Frame (4.08m x 4.08m)
+    const connFrameTop = new THREE.Mesh(new THREE.BoxGeometry(4.08, 0.14, 0.14), chromeFrameMat);
+    connFrameTop.position.set(13.8, 5.07, -14.54);
+    this.scene.add(connFrameTop);
+
+    const connFrameBottom = new THREE.Mesh(new THREE.BoxGeometry(4.08, 0.14, 0.14), chromeFrameMat);
+    connFrameBottom.position.set(13.8, 1.13, -14.54);
+    this.scene.add(connFrameBottom);
+
+    const connFrameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.14, 4.08, 0.14), chromeFrameMat);
+    connFrameLeft.position.set(11.83, 3.1, -14.54);
+    this.scene.add(connFrameLeft);
+
+    const connFrameRight = new THREE.Mesh(new THREE.BoxGeometry(0.14, 4.08, 0.14), chromeFrameMat);
+    connFrameRight.position.set(15.77, 3.1, -14.54);
+    this.scene.add(connFrameRight);
+
+    // Connector - Inner Glowing Electric Blue Neon Bezel (3.84m x 3.84m)
+    const connBezelTop = new THREE.Mesh(new THREE.BoxGeometry(3.84, 0.04, 0.06), cyberGlowBezelMat);
+    connBezelTop.position.set(13.8, 5.02, -14.55);
+    this.scene.add(connBezelTop);
+
+    const connBezelBottom = new THREE.Mesh(new THREE.BoxGeometry(3.84, 0.04, 0.06), cyberGlowBezelMat);
+    connBezelBottom.position.set(13.8, 1.18, -14.55);
+    this.scene.add(connBezelBottom);
+
+    const connBezelLeft = new THREE.Mesh(new THREE.BoxGeometry(0.04, 3.84, 0.06), cyberGlowBezelMat);
+    connBezelLeft.position.set(11.88, 3.1, -14.55);
+    this.scene.add(connBezelLeft);
+
+    const connBezelRight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 3.84, 0.06), cyberGlowBezelMat);
+    connBezelRight.position.set(15.72, 3.1, -14.55);
+    this.scene.add(connBezelRight);
+
+    // Dedicated high-intensity spotlight for The Connector of All Crypto
+    const connectorSpotLight = new THREE.SpotLight('#bae6fd', 6.5, 22, Math.PI / 4, 0.35);
+    connectorSpotLight.position.set(13.8, 5.8, -10.5);
+    connectorSpotLight.target = connectorMesh;
+    this.scene.add(connectorSpotLight);
+
+    // Subtle electric blue ambient wall glow wash
+    const connectorAmbientGlow = new THREE.PointLight('#38bdf8', 2.2, 7);
+    connectorAmbientGlow.position.set(13.8, 3.1, -14.3);
+    this.scene.add(connectorAmbientGlow);
+
+    // Museum Wall Placard for WORLD core — The Connector of All Crypto
+    const connPlaqueCanvas = document.createElement('canvas');
+    connPlaqueCanvas.width = 512;
+    connPlaqueCanvas.height = 256;
+    const cctx = connPlaqueCanvas.getContext('2d')!;
+    cctx.fillStyle = '#090d16';
+    cctx.fillRect(0, 0, 512, 256);
+    cctx.strokeStyle = '#38bdf8';
+    cctx.lineWidth = 6;
+    cctx.strokeRect(6, 6, 500, 244);
+
+    cctx.fillStyle = '#38bdf8';
+    cctx.font = 'bold 24px monospace';
+    cctx.fillText('WORLD CORE — CONNECTOR OF ALL CRYPTO', 20, 55);
+
+    cctx.fillStyle = '#f1f5f9';
+    cctx.font = '19px monospace';
+    cctx.fillText('WORLD CORE FOUNDATION • GENESIS CONCEPT', 20, 105);
+
+    cctx.fillStyle = '#94a3b8';
+    cctx.font = '15px monospace';
+    cctx.fillText('THEME: CONNECTOR // VISION: ONE WORLD, ALL CHAINS', 20, 150);
+
+    cctx.fillStyle = '#f59e0b';
+    cctx.font = '14px monospace';
+    cctx.fillText('STYLE: 3D METALLIC // IPFS VERIFIED', 20, 200);
+
+    const connPlaqueTex = new THREE.CanvasTexture(connPlaqueCanvas);
+    connPlaqueTex.colorSpace = THREE.SRGBColorSpace;
+
+    const connPlaqueMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.6, 0.8),
+      new THREE.MeshStandardMaterial({
+        map: connPlaqueTex,
+        roughness: 0.3,
+        metalness: 0.7,
+      })
+    );
+    connPlaqueMesh.position.set(13.8, 0.45, -14.56);
+    this.scene.add(connPlaqueMesh);
+
+    // Interactive Wall Collider for WORLD core — The Connector of All Crypto
+    const connWallCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(4.2, 4.2, 0.8),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    connWallCollider.position.set(13.8, 3.1, -14.3);
+    this.scene.add(connWallCollider);
+    this.interactiveObjects.push(connWallCollider);
+    this.wallColliders.push({ collider: connWallCollider, exhibitId: 'nft-world-connector' });
   }
 
   private buildHeroExhibits() {
@@ -310,24 +629,96 @@ export class MuseumScene {
 
     const exhibitDefinitions: ExhibitData[] = [
       {
+        id: 'nft-genesis',
+        title: 'WORLD core — Genesis #001',
+        artist: 'WORLD core Foundation',
+        creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+        contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        tokenId: '001',
+        imageUrl: '/assets/aistudio/Futuristic_Chrome_World_Core_Emblem_4fe37529.png',
+        tokenURI: 'ipfs://YOUR_IMAGE_CID/world-core-genesis-001.png',
+        description: 'The first genesis artwork of WORLD core, featuring a luminous blue digital Earth, polished metallic silver lettering, and chrome orbital rings.',
+        rarity: 'Mythic',
+        edition: 'Genesis #001 (Founder Edition)',
+        tags: ['WORLD core Genesis', 'Genesis', 'Electric Blue and Silver', '3D Metallic', 'Founder Edition'],
+        attributes: [
+          { trait_type: 'Collection', value: 'WORLD core Genesis' },
+          { trait_type: 'Edition', value: 'Genesis' },
+          { trait_type: 'Color', value: 'Electric Blue and Silver' },
+          { trait_type: 'Style', value: '3D Metallic' },
+          { trait_type: 'Edition Type', value: 'Founder Edition' },
+        ],
+        currentBid: 4.80,
+        bidsCount: 24,
+        likesCount: 512,
+        position: [6.6, 0, -12.5],
+        rotation: [0, 0, 0],
+        room: 'rotunda',
+        accentColor: '#38bdf8',
+      },
+      {
+        id: 'nft-world-connector',
+        title: 'WORLD core — The Connector of All Crypto',
+        artist: 'WORLD core Foundation',
+        creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+        contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        tokenId: '002',
+        imageUrl: '/assets/aistudio/world-core-connector-001.png',
+        tokenURI: 'ipfs://REPLACE_WITH_YOUR_IMAGE_CID',
+        description: 'A futuristic WORLD core genesis artwork representing the vision of connecting the crypto ecosystem through one global digital world.',
+        rarity: 'Mythic',
+        edition: 'Genesis Concept (One World, All Chains)',
+        tags: [
+          'WORLD core Genesis',
+          'The Connector of All Crypto',
+          'One World, All Chains',
+          'Futuristic 3D Metallic',
+          'Electric Blue',
+          'Genesis Concept',
+        ],
+        attributes: [
+          { trait_type: 'Collection', value: 'WORLD core Genesis' },
+          { trait_type: 'Theme', value: 'The Connector of All Crypto' },
+          { trait_type: 'Vision', value: 'One World, All Chains' },
+          { trait_type: 'Style', value: 'Futuristic 3D Metallic' },
+          { trait_type: 'Primary Color', value: 'Electric Blue' },
+          { trait_type: 'Edition', value: 'Genesis Concept' },
+        ],
+        currentBid: 5.40,
+        bidsCount: 31,
+        likesCount: 684,
+        position: [13.8, 0, -12.5],
+        rotation: [0, 0, 0],
+        room: 'rotunda',
+        accentColor: '#38bdf8',
+      },
+      {
         id: 'nft-1',
-        title: 'Genesis Monolith // #001',
-        artist: 'Satoshi Algorists',
+        title: 'KUPAL Graffiti',
+        artist: 'Street Art Syndicate',
         creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
         ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
         contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
         tokenId: '1',
-        description: 'A mathematical singularity encoded into autonomous recursive geometry. The primary genesis artifact of the museum.',
+        imageUrl: '/assets/aistudio/KUPAL_Graffiti_on_Concrete_87cdb948.png',
+        description: 'Urban graffiti artwork with bold orange and yellow lettering, black shadows, blue paint splashes, and a crown on a concrete wall.',
         rarity: 'Mythic',
-        edition: '1 of 1',
-        tags: ['Generative', 'Sacred Math', 'On-Chain'],
-        currentBid: 2.45,
-        bidsCount: 14,
-        likesCount: 128,
-        position: [0, 0, 0],
+        edition: '1 of 1 Masterpiece',
+        tags: ['KUPAL', 'graffiti', 'street art', 'urban art', 'spray paint'],
+        attributes: [
+          { trait_type: 'Medium', value: 'Spray Paint on Concrete' },
+          { trait_type: 'Style', value: 'Urban Street Art' },
+          { trait_type: 'Series', value: 'Syndicate Murals' },
+        ],
+        currentBid: 3.45,
+        bidsCount: 18,
+        likesCount: 342,
+        position: [-8, 0, -12.5],
         rotation: [0, 0, 0],
         room: 'rotunda',
-        accentColor: '#38bdf8',
+        accentColor: '#f97316',
       },
       {
         id: 'nft-2',
@@ -433,6 +824,24 @@ export class MuseumScene {
     ];
 
     exhibitDefinitions.forEach((exhibit) => {
+      const isWallExhibit =
+        exhibit.id === 'nft-1' ||
+        exhibit.id === 'nft-genesis' ||
+        exhibit.id === 'nft-world-connector';
+
+      if (isWallExhibit) {
+        const wallColliderObj = this.wallColliders.find((w) => w.exhibitId === exhibit.id)?.collider;
+        const record: ExhibitMeshRecord = {
+          collider: (wallColliderObj as THREE.Mesh) || new THREE.Mesh(),
+          data: exhibit,
+          artMesh: new THREE.Mesh(),
+          ownerBadge: new THREE.Group(),
+          accentLight: new THREE.SpotLight(),
+        };
+        this.exhibitRecords.push(record);
+        return;
+      }
+
       const exhibitGroup = new THREE.Group();
       exhibitGroup.position.set(...exhibit.position);
       exhibitGroup.rotation.set(...exhibit.rotation);
@@ -509,10 +918,11 @@ export class MuseumScene {
 
       const nftTexture = createProceduralNftCanvas(exhibit.id, maxAnisotropy);
       const canvasGeo = new THREE.BoxGeometry(1.5, 1.5, 0.08);
+      const isGenesis = exhibit.id === 'nft-genesis';
       const frameMat = new THREE.MeshStandardMaterial({
-        color: '#f59e0b',
-        roughness: 0.2,
-        metalness: 0.9,
+        color: isGenesis ? '#f1f5f9' : '#f59e0b',
+        roughness: isGenesis ? 0.08 : 0.2,
+        metalness: isGenesis ? 0.98 : 0.9,
       });
       const artMat = new THREE.MeshStandardMaterial({
         map: nftTexture,
@@ -529,28 +939,50 @@ export class MuseumScene {
       const kineticGroup = new THREE.Group();
       kineticGroup.position.set(0, 2.0, 0);
 
+      // Orbital Ring 1: Glowing Electric Blue
       const gyroRing1 = new THREE.Mesh(
-        new THREE.TorusGeometry(1.1, 0.025, 16, 48),
+        new THREE.TorusGeometry(1.1, isGenesis ? 0.03 : 0.025, 16, 48),
         new THREE.MeshStandardMaterial({
           color: exhibit.accentColor,
-          roughness: 0.2,
+          roughness: 0.15,
           metalness: 0.9,
           emissive: exhibit.accentColor,
-          emissiveIntensity: 0.35,
+          emissiveIntensity: isGenesis ? 0.75 : 0.35,
         })
       );
       kineticGroup.add(gyroRing1);
 
+      // Orbital Ring 2: Polished Mirror Chrome Silver
       const gyroRing2 = new THREE.Mesh(
-        new THREE.TorusGeometry(1.22, 0.02, 16, 48),
+        new THREE.TorusGeometry(1.24, 0.022, 16, 48),
         new THREE.MeshStandardMaterial({
-          color: '#ffffff',
-          roughness: 0.1,
-          metalness: 0.95,
+          color: '#f8fafc',
+          roughness: 0.05,
+          metalness: 0.98,
         })
       );
       gyroRing2.rotation.x = Math.PI / 3;
+      gyroRing2.rotation.y = Math.PI / 6;
       kineticGroup.add(gyroRing2);
+
+      // For WORLD core Genesis #001: Outer third chrome orbital ring & cyber blue inner light
+      if (isGenesis) {
+        const gyroRing3 = new THREE.Mesh(
+          new THREE.TorusGeometry(1.38, 0.018, 16, 64),
+          new THREE.MeshStandardMaterial({
+            color: '#cbd5e1',
+            roughness: 0.06,
+            metalness: 0.95,
+          })
+        );
+        gyroRing3.rotation.x = -Math.PI / 4;
+        gyroRing3.rotation.z = Math.PI / 5;
+        kineticGroup.add(gyroRing3);
+
+        const genesisPointLight = new THREE.PointLight('#38bdf8', 2.8, 8);
+        genesisPointLight.position.set(0, 0, 0);
+        kineticGroup.add(genesisPointLight);
+      }
 
       exhibitGroup.add(kineticGroup);
       this.kineticSculptures.push(kineticGroup);
@@ -618,6 +1050,10 @@ export class MuseumScene {
       this.exhibitRecords.push(record);
       this.interactiveObjects.push(colliderMesh);
       this.scene.add(exhibitGroup);
+
+      if (exhibit.imageUrl) {
+        this.loadCustomTexture(record, exhibit.imageUrl, exhibit.title, exhibit.artist);
+      }
     });
   }
 
@@ -642,6 +1078,27 @@ export class MuseumScene {
   // Virtual Joypad Direction Trigger for Mobile / Onscreen Buttons
   public setVirtualKey(key: string, pressed: boolean) {
     this.keysPressed[key.toLowerCase()] = pressed;
+  }
+
+  // Smooth Analog Vector input from mobile virtual thumbstick
+  public setVirtualJoystick(vector: { x: number; y: number }, sprint: boolean = false) {
+    this.virtualJoystickVector = vector;
+    this.isVirtualSprint = sprint;
+  }
+
+  // Touch rotation helper for mobile swipe look
+  public rotateBy(deltaYaw: number, deltaPitch: number) {
+    if (this.navMode === 'WALK') {
+      this.walkYaw -= deltaYaw;
+      this.walkPitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.walkPitch - deltaPitch));
+    } else {
+      this.spherical.theta -= deltaYaw;
+      this.spherical.phi = Math.max(0.1, Math.min(Math.PI / 2.05, this.spherical.phi - deltaPitch));
+      const radius = this.cameraTargetPosition.distanceTo(this.cameraTargetLookAt);
+      this.cameraTargetPosition.x = this.cameraTargetLookAt.x + radius * Math.sin(this.spherical.phi) * Math.sin(this.spherical.theta);
+      this.cameraTargetPosition.y = this.cameraTargetLookAt.y + radius * Math.cos(this.spherical.phi);
+      this.cameraTargetPosition.z = this.cameraTargetLookAt.z + radius * Math.sin(this.spherical.phi) * Math.cos(this.spherical.theta);
+    }
   }
 
   public updateOwnershipState(connectedAddress: string) {
@@ -698,9 +1155,31 @@ export class MuseumScene {
 
       ctx.fillStyle = '#09090b';
       ctx.fillRect(0, 0, 1024, 1024);
-      ctx.drawImage(img, 60, 60, 904, 820);
 
-      ctx.fillStyle = '#facc15';
+      // Preserve native aspect ratio without distortion
+      const maxW = 904;
+      const maxH = 820;
+      const naturalW = img.naturalWidth || img.width || 1;
+      const naturalH = img.naturalHeight || img.height || 1;
+      const imgAspect = naturalW / naturalH;
+
+      let drawW = maxW;
+      let drawH = maxW / imgAspect;
+      if (drawH > maxH) {
+        drawH = maxH;
+        drawW = maxH * imgAspect;
+      }
+      const drawX = 60 + (maxW - drawW) / 2;
+      const drawY = 60 + (maxH - drawH) / 2;
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 4;
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      ctx.restore();
+
+      ctx.fillStyle = rec.data.accentColor || '#facc15';
       ctx.font = 'bold 36px monospace';
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 8;
@@ -747,6 +1226,42 @@ export class MuseumScene {
     this.activeExhibit = exhibit;
     sound.playInspect();
 
+    if (exhibit.id === 'nft-genesis') {
+      this.cameraTargetPosition.set(6.6, 2.0, -9.2);
+      this.cameraTargetLookAt.set(6.6, 2.9, -14.58);
+      if (this.navMode === 'WALK') {
+        this.camera.position.set(6.6, 1.7, -9.2);
+        this.walkYaw = Math.PI;
+        this.walkPitch = 0.12;
+      }
+      this.callbacks.onSelectExhibit(exhibit);
+      return;
+    }
+
+    if (exhibit.id === 'nft-world-connector') {
+      this.cameraTargetPosition.set(13.8, 2.0, -9.2);
+      this.cameraTargetLookAt.set(13.8, 2.9, -14.58);
+      if (this.navMode === 'WALK') {
+        this.camera.position.set(13.8, 1.7, -9.2);
+        this.walkYaw = Math.PI;
+        this.walkPitch = 0.12;
+      }
+      this.callbacks.onSelectExhibit(exhibit);
+      return;
+    }
+
+    if (exhibit.id === 'nft-1') {
+      this.cameraTargetPosition.set(-8, 2.0, -9.2);
+      this.cameraTargetLookAt.set(-8, 2.9, -14.58);
+      if (this.navMode === 'WALK') {
+        this.camera.position.set(-8, 1.7, -9.2);
+        this.walkYaw = Math.PI;
+        this.walkPitch = 0.12;
+      }
+      this.callbacks.onSelectExhibit(exhibit);
+      return;
+    }
+
     const offsetDistance = 3.6;
     const rad = exhibit.rotation[1];
     const targetX = exhibit.position[0] + Math.sin(rad) * offsetDistance;
@@ -770,6 +1285,18 @@ export class MuseumScene {
     }
 
     this.callbacks.onSelectExhibit(exhibit);
+  }
+
+  public focusCorePlanet() {
+    this.activeExhibit = null;
+    sound.playInspect();
+    this.cameraTargetPosition.set(0, 2.7, 5.2);
+    this.cameraTargetLookAt.set(0, 2.7, 0);
+    if (this.navMode === 'WALK') {
+      this.camera.position.set(0, 1.7, 5.2);
+      this.walkYaw = 0;
+      this.walkPitch = 0.12;
+    }
   }
 
   public resetView() {
@@ -809,6 +1336,86 @@ export class MuseumScene {
       this.camera.position.copy(this.cameraTargetPosition);
       this.camera.position.y = 1.7;
     }
+    this.emitPlayerTransform();
+  }
+
+  public subscribePlayer(listener: (transform: PlayerTransform) => void): () => void {
+    this.playerListeners.add(listener);
+    try {
+      listener(this.getPlayerTransform());
+    } catch (e) {
+      console.error('Initial transform dispatch error:', e);
+    }
+    return () => {
+      this.playerListeners.delete(listener);
+    };
+  }
+
+  public getPlayerTransform(): PlayerTransform {
+    const x = this.camera.position.x;
+    const z = this.camera.position.z;
+
+    let yaw = this.walkYaw;
+    if (this.navMode === 'ORBIT') {
+      yaw = Math.atan2(
+        -(this.cameraCurrentLookAt.x - this.camera.position.x),
+        -(this.cameraCurrentLookAt.z - this.camera.position.z)
+      );
+    }
+
+    let room: PlayerTransform['room'] = 'rotunda';
+    if (z < -13.5) {
+      room = 'vault';
+    } else if (z > 12) {
+      room = 'entrance';
+    } else if (x < -3.5) {
+      room = 'renaissance';
+    } else if (x > 3.5) {
+      room = 'cyberpunk';
+    }
+
+    return {
+      x,
+      z,
+      yaw,
+      pitch: this.walkPitch,
+      room,
+      navMode: this.navMode,
+    };
+  }
+
+  public teleportTo(targetX: number, targetZ: number, targetLookX?: number, targetLookZ?: number) {
+    sound.playClick();
+    const clampedX = Math.max(-22, Math.min(22, targetX));
+    const minZ = this.isVaultUnlocked ? -22 : -14;
+    const clampedZ = Math.max(minZ, Math.min(22, targetZ));
+
+    this.camera.position.x = clampedX;
+    this.camera.position.z = clampedZ;
+    this.cameraTargetPosition.x = clampedX;
+    this.cameraTargetPosition.z = clampedZ;
+
+    if (targetLookX !== undefined && targetLookZ !== undefined) {
+      this.walkYaw = Math.atan2(-(targetLookX - clampedX), -(targetLookZ - clampedZ));
+      this.cameraTargetLookAt.set(targetLookX, 1.8, targetLookZ);
+      this.cameraCurrentLookAt.set(targetLookX, 1.8, targetLookZ);
+    }
+
+    this.emitPlayerTransform();
+  }
+
+  private emitPlayerTransform() {
+    const transform = this.getPlayerTransform();
+    if (this.callbacks.onPlayerTransform) {
+      this.callbacks.onPlayerTransform(transform);
+    }
+    this.playerListeners.forEach((listener) => {
+      try {
+        listener(transform);
+      } catch (err) {
+        console.error('Error in player transform listener:', err);
+      }
+    });
   }
 
   private bindEvents() {
@@ -838,30 +1445,37 @@ export class MuseumScene {
       if (e.key === 'Shift') this.isSprint = false;
     });
 
-    // Pointer Drag & Look
+    // Pointer Drag & Look with multi-touch isolation
     el.addEventListener('pointerdown', (e) => {
-      this.isUserInteracting = true;
-      this.pointerDownPos = { x: e.clientX, y: e.clientY };
+      // If we are not currently tracking a look pointer, claim this one
+      if (this.activeLookPointerId === null) {
+        this.activeLookPointerId = e.pointerId;
+        this.pointerDownPos = { x: e.clientX, y: e.clientY };
+      }
     });
 
-    window.addEventListener('pointerup', (e) => {
-      if (this.isUserInteracting) {
+    const releasePointer = (e: PointerEvent) => {
+      if (this.activeLookPointerId === e.pointerId) {
         const dx = Math.abs(e.clientX - this.pointerDownPos.x);
         const dy = Math.abs(e.clientY - this.pointerDownPos.y);
+        const threshold = e.pointerType === 'touch' ? 16 : 6;
 
-        if (dx < 6 && dy < 6) {
+        if (dx < threshold && dy < threshold) {
           this.handleClick(e);
         }
+        this.activeLookPointerId = null;
       }
-      this.isUserInteracting = false;
-    });
+    };
+
+    window.addEventListener('pointerup', releasePointer);
+    window.addEventListener('pointercancel', releasePointer);
 
     el.addEventListener('pointermove', (e) => {
       const rect = el.getBoundingClientRect();
       _pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       _pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-      if (this.isUserInteracting) {
+      if (this.activeLookPointerId === e.pointerId) {
         const deltaX = (e.clientX - this.pointerDownPos.x);
         const deltaY = (e.clientY - this.pointerDownPos.y);
         this.pointerDownPos = { x: e.clientX, y: e.clientY };
@@ -880,11 +1494,28 @@ export class MuseumScene {
           this.cameraTargetPosition.y = this.cameraTargetLookAt.y + radius * Math.cos(this.spherical.phi);
           this.cameraTargetPosition.z = this.cameraTargetLookAt.z + radius * Math.sin(this.spherical.phi) * Math.cos(this.spherical.theta);
         }
-      } else {
+      } else if (this.activeLookPointerId === null) {
         _raycaster.setFromCamera(_pointer, this.camera);
         const intersects = _raycaster.intersectObjects(this.interactiveObjects, false);
         if (intersects.length > 0) {
-          const hit = this.exhibitRecords.find((m) => m.collider === intersects[0].object);
+          if (this.planetNetwork) {
+            const nodeHit = this.planetNetwork.getIntersectedNode(intersects[0].object);
+            if (nodeHit) {
+              el.style.cursor = 'pointer';
+              if (this.callbacks.onHoverCryptoChain) {
+                this.callbacks.onHoverCryptoChain(nodeHit.chain || null);
+              }
+              return;
+            }
+          }
+
+          let hit = this.exhibitRecords.find((m) => m.collider === intersects[0].object);
+          if (!hit) {
+            const wallMatch = this.wallColliders.find((w) => w.collider === intersects[0].object);
+            if (wallMatch) {
+              hit = this.exhibitRecords.find((m) => m.data.id === wallMatch.exhibitId);
+            }
+          }
           if (hit) {
             el.style.cursor = 'pointer';
             this.callbacks.onHoverExhibit(hit.data);
@@ -893,6 +1524,9 @@ export class MuseumScene {
         }
         el.style.cursor = 'default';
         this.callbacks.onHoverExhibit(null);
+        if (this.callbacks.onHoverCryptoChain) {
+          this.callbacks.onHoverCryptoChain(null);
+        }
       }
     });
 
@@ -908,7 +1542,32 @@ export class MuseumScene {
     const intersects = _raycaster.intersectObjects(this.interactiveObjects, false);
 
     if (intersects.length > 0) {
-      const hit = this.exhibitRecords.find((m) => m.collider === intersects[0].object);
+      if (this.planetNetwork) {
+        const nodeHit = this.planetNetwork.getIntersectedNode(intersects[0].object);
+        if (nodeHit) {
+          if (nodeHit.isCore) {
+            this.focusCorePlanet();
+            const coreEx = this.exhibitRecords.find((m) => m.data.id === 'nft-world-connector');
+            if (coreEx) {
+              this.callbacks.onSelectExhibit(coreEx.data);
+            }
+          } else if (nodeHit.chain) {
+            sound.playClick();
+            if (this.callbacks.onSelectCryptoChain) {
+              this.callbacks.onSelectCryptoChain(nodeHit.chain);
+            }
+          }
+          return;
+        }
+      }
+
+      let hit = this.exhibitRecords.find((m) => m.collider === intersects[0].object);
+      if (!hit) {
+        const wallMatch = this.wallColliders.find((w) => w.collider === intersects[0].object);
+        if (wallMatch) {
+          hit = this.exhibitRecords.find((m) => m.data.id === wallMatch.exhibitId);
+        }
+      }
       if (hit) {
         this.focusExhibit(hit.data);
       }
@@ -947,10 +1606,18 @@ export class MuseumScene {
     if (left) _moveDir.x -= 1;
     if (right) _moveDir.x += 1;
 
-    const isMoving = _moveDir.lengthSq() > 0;
+    // Merge virtual analog joystick movement
+    if (Math.abs(this.virtualJoystickVector.x) > 0.05 || Math.abs(this.virtualJoystickVector.y) > 0.05) {
+      _moveDir.x += this.virtualJoystickVector.x;
+      _moveDir.z += this.virtualJoystickVector.y;
+    }
+
+    const isMoving = _moveDir.lengthSq() > 0.005;
 
     if (isMoving) {
-      _moveDir.normalize();
+      if (_moveDir.lengthSq() > 1) {
+        _moveDir.normalize();
+      }
 
       // Transform move vector relative to camera walkYaw
       const cos = Math.cos(this.walkYaw);
@@ -959,12 +1626,13 @@ export class MuseumScene {
       const worldX = _moveDir.x * cos + _moveDir.z * sin;
       const worldZ = -_moveDir.x * sin + _moveDir.z * cos;
 
-      const speed = this.isSprint ? 7.5 : 4.5;
+      const activeSprint = this.isSprint || this.isVirtualSprint;
+      const speed = activeSprint ? 7.5 : 4.5;
       this.walkVelocity.x = worldX * speed;
       this.walkVelocity.z = worldZ * speed;
 
       // Accumulate head bobbing
-      this.walkStep += delta * (this.isSprint ? 14 : 9);
+      this.walkStep += delta * (activeSprint ? 14 : 9);
     } else {
       // Damping
       this.walkVelocity.x = THREE.MathUtils.damp(this.walkVelocity.x, 0, 8, delta);
@@ -1049,6 +1717,10 @@ export class MuseumScene {
       this.vaultDoors.right.position.x = 1.4 + this.vaultDoors.openAmount;
     }
 
+    if (this.planetNetwork) {
+      this.planetNetwork.update(delta, elapsed, this.camera.position);
+    }
+
     if (this.navMode === 'WALK') {
       this.updateWalkPhysics(delta);
     } else {
@@ -1065,15 +1737,21 @@ export class MuseumScene {
       this.camera.lookAt(this.cameraCurrentLookAt);
     }
 
+    this.emitPlayerTransform();
     this.renderer.render(this.scene, this.camera);
     this.animationFrameId = requestAnimationFrame(this.tick);
   }
 
   public dispose() {
     this.isDisposed = true;
+    this.playerListeners.clear();
     cancelAnimationFrame(this.animationFrameId);
     window.removeEventListener('resize', this.onResize.bind(this));
     this.timer.dispose();
+
+    if (this.planetNetwork) {
+      this.planetNetwork.dispose();
+    }
 
     this.scene.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {

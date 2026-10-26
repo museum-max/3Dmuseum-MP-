@@ -15,6 +15,41 @@ export interface FetchedNftMetadata {
 
 export const CURATED_EXTERNAL_NFTS: FetchedNftMetadata[] = [
   {
+    name: 'WORLD core — The Connector of All Crypto',
+    artist: 'WORLD core Foundation',
+    description: 'A futuristic WORLD core genesis artwork representing the vision of connecting the crypto ecosystem through one global digital world.',
+    image: '/assets/aistudio/world-core-connector-001.png',
+    contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    tokenId: '002',
+    standard: 'ERC-721',
+    ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+    attributes: [
+      { trait_type: 'Collection', value: 'WORLD core Genesis' },
+      { trait_type: 'Theme', value: 'The Connector of All Crypto' },
+      { trait_type: 'Vision', value: 'One World, All Chains' },
+      { trait_type: 'Style', value: 'Futuristic 3D Metallic' },
+      { trait_type: 'Primary Color', value: 'Electric Blue' },
+      { trait_type: 'Edition', value: 'Genesis Concept' },
+    ],
+  },
+  {
+    name: 'WORLD core — Genesis #001',
+    artist: 'WORLD core Foundation',
+    description: 'The first genesis artwork of WORLD core, featuring a luminous blue digital Earth, polished metallic silver lettering, and chrome orbital rings.',
+    image: '/assets/aistudio/Futuristic_Chrome_World_Core_Emblem_4fe37529.png',
+    contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    tokenId: '001',
+    standard: 'ERC-721',
+    ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+    attributes: [
+      { trait_type: 'Collection', value: 'WORLD core Genesis' },
+      { trait_type: 'Edition', value: 'Genesis' },
+      { trait_type: 'Color', value: 'Electric Blue and Silver' },
+      { trait_type: 'Style', value: '3D Metallic' },
+      { trait_type: 'Edition Type', value: 'Founder Edition' }
+    ]
+  },
+  {
     name: 'Chromie Squiggle #7583',
     artist: 'Snowfro (Art Blocks)',
     description: 'Autonomous color-wave algorithm synthesized directly on the Ethereum blockchain. Features hyper-saturated spectral distribution.',
