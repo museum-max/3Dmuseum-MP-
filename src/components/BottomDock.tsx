@@ -17,6 +17,8 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
+  TrendingUp,
+  Globe,
 } from 'lucide-react';
 import { ExhibitData, NavigationMode } from '../types';
 
@@ -33,6 +35,8 @@ interface BottomDockProps {
   nearbyExhibit: ExhibitData | null;
   navMode: NavigationMode;
   vaultUnlocked: boolean;
+  onOpenTrading?: () => void;
+  onFocusCorePlanet?: () => void;
 }
 
 export const BottomDock: React.FC<BottomDockProps> = ({
@@ -48,6 +52,8 @@ export const BottomDock: React.FC<BottomDockProps> = ({
   nearbyExhibit,
   navMode,
   vaultUnlocked,
+  onOpenTrading,
+  onFocusCorePlanet,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 768
@@ -159,6 +165,16 @@ export const BottomDock: React.FC<BottomDockProps> = ({
               <span>Rotunda</span>
             </button>
 
+            {onFocusCorePlanet && (
+              <button
+                onClick={onFocusCorePlanet}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-950/70 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-900 hover:text-white transition-colors whitespace-nowrap"
+              >
+                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                <span>CORE Planet</span>
+              </button>
+            )}
+
             <button
               onClick={() => handleRoomClick('renaissance')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors whitespace-nowrap ${
@@ -200,8 +216,19 @@ export const BottomDock: React.FC<BottomDockProps> = ({
             </button>
           </div>
 
-          {/* Right: Marketplace, Curate, Reset, Pass */}
+          {/* Right: Live Trading, Marketplace, Curate, Reset, Pass */}
           <div className="flex items-center justify-between lg:justify-end gap-2 w-full lg:w-auto border-t lg:border-t-0 border-slate-800 pt-2 lg:pt-0">
+            {/* Live Trading Button */}
+            {onOpenTrading && (
+              <button
+                onClick={onOpenTrading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-500/60 text-cyan-300 text-xs font-mono font-bold transition-all shadow-md shadow-cyan-950/30"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Live Trading</span>
+              </button>
+            )}
+
             {/* Marketplace Button */}
             <button
               onClick={onOpenMarketplace}

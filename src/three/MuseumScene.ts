@@ -620,6 +620,134 @@ export class MuseumScene {
     this.scene.add(connWallCollider);
     this.interactiveObjects.push(connWallCollider);
     this.wallColliders.push({ collider: connWallCollider, exhibitId: 'nft-world-connector' });
+
+    // Architectural Vintage Noir Masterpiece Wall Installation: "Old Gangster #001" (1:1 Square Masterpiece)
+    const gangsterGeo = new THREE.PlaneGeometry(3.8, 3.8);
+    const gangsterTex = textureLoader.load('/assets/aistudio/Rainy_Noir_Gangster_Portrait_3202bd82.png');
+    gangsterTex.colorSpace = THREE.SRGBColorSpace;
+    gangsterTex.anisotropy = maxAnisotropy;
+
+    const gangsterMat = new THREE.MeshStandardMaterial({
+      map: gangsterTex,
+      roughness: 0.22,
+      metalness: 0.35,
+    });
+    const gangsterMesh = new THREE.Mesh(gangsterGeo, gangsterMat);
+    gangsterMesh.position.set(18.38, 3.1, 0);
+    gangsterMesh.rotation.y = -Math.PI / 2;
+    gangsterMesh.receiveShadow = !this.isSoftwareGl;
+    this.scene.add(gangsterMesh);
+
+    // Frame materials: Vintage Antique Gold & Warm Amber Glow
+    const antiqueGoldFrameMat = new THREE.MeshStandardMaterial({
+      color: '#d97706',
+      roughness: 0.15,
+      metalness: 0.95,
+    });
+    const amberGlowBezelMat = new THREE.MeshStandardMaterial({
+      color: '#f59e0b',
+      emissive: '#d97706',
+      emissiveIntensity: 0.85,
+      roughness: 0.15,
+      metalness: 0.9,
+    });
+
+    // Old Gangster #001 - Outer Frame (4.08m x 4.08m)
+    const gFrameTop = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 4.08), antiqueGoldFrameMat);
+    gFrameTop.position.set(18.34, 5.07, 0);
+    this.scene.add(gFrameTop);
+
+    const gFrameBottom = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 4.08), antiqueGoldFrameMat);
+    gFrameBottom.position.set(18.34, 1.13, 0);
+    this.scene.add(gFrameBottom);
+
+    const gFrameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.14, 4.08, 0.14), antiqueGoldFrameMat);
+    gFrameLeft.position.set(18.34, 3.1, -1.97);
+    this.scene.add(gFrameLeft);
+
+    const gFrameRight = new THREE.Mesh(new THREE.BoxGeometry(0.14, 4.08, 0.14), antiqueGoldFrameMat);
+    gFrameRight.position.set(18.34, 3.1, 1.97);
+    this.scene.add(gFrameRight);
+
+    // Old Gangster #001 - Inner Glowing Amber Neon Bezel (3.84m x 3.84m)
+    const gBezelTop = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 3.84), amberGlowBezelMat);
+    gBezelTop.position.set(18.35, 5.02, 0);
+    this.scene.add(gBezelTop);
+
+    const gBezelBottom = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 3.84), amberGlowBezelMat);
+    gBezelBottom.position.set(18.35, 1.18, 0);
+    this.scene.add(gBezelBottom);
+
+    const gBezelLeft = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.84, 0.04), amberGlowBezelMat);
+    gBezelLeft.position.set(18.35, 3.1, -1.92);
+    this.scene.add(gBezelLeft);
+
+    const gBezelRight = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.84, 0.04), amberGlowBezelMat);
+    gBezelRight.position.set(18.35, 3.1, 1.92);
+    this.scene.add(gBezelRight);
+
+    // Dedicated high-intensity museum warm spotlight
+    const gangsterSpotLight = new THREE.SpotLight('#fef3c7', 6.5, 20, Math.PI / 4, 0.35);
+    gangsterSpotLight.position.set(14.0, 5.8, 0);
+    gangsterSpotLight.target = gangsterMesh;
+    this.scene.add(gangsterSpotLight);
+
+    // Subtle warm amber ambient wall wash
+    const gangsterAmbientGlow = new THREE.PointLight('#f59e0b', 2.0, 7);
+    gangsterAmbientGlow.position.set(18.1, 3.1, 0);
+    this.scene.add(gangsterAmbientGlow);
+
+    // Museum Wall Placard for Old Gangster #001
+    const gPlaqueCanvas = document.createElement('canvas');
+    gPlaqueCanvas.width = 512;
+    gPlaqueCanvas.height = 256;
+    const gctx = gPlaqueCanvas.getContext('2d')!;
+    gctx.fillStyle = '#090d16';
+    gctx.fillRect(0, 0, 512, 256);
+    gctx.strokeStyle = '#f59e0b';
+    gctx.lineWidth = 6;
+    gctx.strokeRect(6, 6, 500, 244);
+
+    gctx.fillStyle = '#f59e0b';
+    gctx.font = 'bold 28px monospace';
+    gctx.fillText('OLD GANGSTER #001', 24, 60);
+
+    gctx.fillStyle = '#f1f5f9';
+    gctx.font = '20px monospace';
+    gctx.fillText('WORLCORE MUSEUM • VINTAGE NOIR', 24, 110);
+
+    gctx.fillStyle = '#94a3b8';
+    gctx.font = '16px monospace';
+    gctx.fillText('STYLE: DARK STREET NOIR // RARITY: LEGENDARY', 24, 155);
+
+    gctx.fillStyle = '#10b981';
+    gctx.font = '14px monospace';
+    gctx.fillText('EDITION: 001 // IPFS VERIFIED MASTERPIECE', 24, 205);
+
+    const gPlaqueTex = new THREE.CanvasTexture(gPlaqueCanvas);
+    gPlaqueTex.colorSpace = THREE.SRGBColorSpace;
+
+    const gPlaqueMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.6, 0.8),
+      new THREE.MeshStandardMaterial({
+        map: gPlaqueTex,
+        roughness: 0.3,
+        metalness: 0.7,
+      })
+    );
+    gPlaqueMesh.position.set(18.36, 0.45, 0);
+    gPlaqueMesh.rotation.y = -Math.PI / 2;
+    this.scene.add(gPlaqueMesh);
+
+    // Interactive Wall Collider for Old Gangster #001
+    const gWallCollider = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 4.2, 4.2),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    gWallCollider.position.set(18.1, 3.1, 0);
+    this.scene.add(gWallCollider);
+    this.interactiveObjects.push(gWallCollider);
+    this.wallColliders.push({ collider: gWallCollider, exhibitId: 'nft-old-gangster' });
   }
 
   private buildHeroExhibits() {
@@ -693,6 +821,46 @@ export class MuseumScene {
         rotation: [0, 0, 0],
         room: 'rotunda',
         accentColor: '#38bdf8',
+      },
+      {
+        id: 'nft-old-gangster',
+        title: 'Old Gangster #001',
+        artist: 'WORLCORE MUSEUM',
+        creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+        contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+        tokenId: '001',
+        imageUrl: '/assets/aistudio/Rainy_Noir_Gangster_Portrait_3202bd82.png',
+        tokenURI: 'ipfs://YOUR_IMAGE_CID',
+        description: 'A legendary vintage street gangster from the WORLCORE MUSEUM NFT Collection. Featuring a black pinstripe suit, gold jewelry, a classic fedora, and a dark cinematic city atmosphere.',
+        rarity: 'Legendary',
+        edition: '001 (1 of 1 Masterpiece)',
+        tags: [
+          'WORLCORE MUSEUM',
+          'Old Gangster',
+          'Black Pinstripe Suit',
+          'Dark Street Noir',
+          'Vintage Fedora',
+          'Gold Chain',
+          'Legendary',
+        ],
+        attributes: [
+          { trait_type: 'Collection', value: 'WORLCORE MUSEUM' },
+          { trait_type: 'Character', value: 'Old Gangster' },
+          { trait_type: 'Outfit', value: 'Black Pinstripe Suit' },
+          { trait_type: 'Accessory', value: 'Gold Chain' },
+          { trait_type: 'Headwear', value: 'Vintage Fedora' },
+          { trait_type: 'Style', value: 'Dark Street Noir' },
+          { trait_type: 'Rarity', value: 'Legendary' },
+          { trait_type: 'Edition', value: '001' },
+        ],
+        currentBid: 6.20,
+        bidsCount: 38,
+        likesCount: 845,
+        position: [18.38, 0, 0],
+        rotation: [0, -Math.PI / 2, 0],
+        room: 'cyberpunk',
+        accentColor: '#f59e0b',
       },
       {
         id: 'nft-1',
@@ -827,7 +995,8 @@ export class MuseumScene {
       const isWallExhibit =
         exhibit.id === 'nft-1' ||
         exhibit.id === 'nft-genesis' ||
-        exhibit.id === 'nft-world-connector';
+        exhibit.id === 'nft-world-connector' ||
+        exhibit.id === 'nft-old-gangster';
 
       if (isWallExhibit) {
         const wallColliderObj = this.wallColliders.find((w) => w.exhibitId === exhibit.id)?.collider;
@@ -1250,6 +1419,18 @@ export class MuseumScene {
       return;
     }
 
+    if (exhibit.id === 'nft-old-gangster') {
+      this.cameraTargetPosition.set(13.6, 2.0, 0);
+      this.cameraTargetLookAt.set(18.38, 2.9, 0);
+      if (this.navMode === 'WALK') {
+        this.camera.position.set(13.6, 1.7, 0);
+        this.walkYaw = -Math.PI / 2;
+        this.walkPitch = 0.12;
+      }
+      this.callbacks.onSelectExhibit(exhibit);
+      return;
+    }
+
     if (exhibit.id === 'nft-1') {
       this.cameraTargetPosition.set(-8, 2.0, -9.2);
       this.cameraTargetLookAt.set(-8, 2.9, -14.58);
@@ -1290,13 +1471,24 @@ export class MuseumScene {
   public focusCorePlanet() {
     this.activeExhibit = null;
     sound.playInspect();
-    this.cameraTargetPosition.set(0, 2.7, 5.2);
+    this.cameraTargetPosition.set(0, 3.2, 7.8);
     this.cameraTargetLookAt.set(0, 2.7, 0);
+    this.cameraCurrentLookAt.set(0, 2.7, 0);
+
+    this.spherical.radius = 7.8;
+    this.spherical.theta = 0;
+    this.spherical.phi = Math.PI / 2.15;
+
     if (this.navMode === 'WALK') {
-      this.camera.position.set(0, 1.7, 5.2);
+      this.camera.position.set(0, 1.7, 7.0);
       this.walkYaw = 0;
-      this.walkPitch = 0.12;
+      this.walkPitch = 0.14;
+      this.camera.lookAt(0, 2.7, 0);
+    } else {
+      this.camera.position.set(0, 3.2, 7.8);
+      this.camera.lookAt(0, 2.7, 0);
     }
+    this.emitPlayerTransform();
   }
 
   public resetView() {

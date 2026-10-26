@@ -8,6 +8,7 @@ interface CryptoChainModalProps {
   onClose: () => void;
   onTeleportToCore: () => void;
   onInspectGenesisWall: () => void;
+  onOpenTrading?: (symbol: string) => void;
 }
 
 export const CryptoChainModal: React.FC<CryptoChainModalProps> = ({
@@ -15,6 +16,7 @@ export const CryptoChainModal: React.FC<CryptoChainModalProps> = ({
   onClose,
   onTeleportToCore,
   onInspectGenesisWall,
+  onOpenTrading,
 }) => {
   if (!chain) return null;
 
@@ -81,10 +83,7 @@ export const CryptoChainModal: React.FC<CryptoChainModalProps> = ({
         {/* Status Banner */}
         <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800 mb-5">
           <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30" />
             Connected to WORLD CORE
           </div>
           <div className="flex items-center gap-1.5 text-xs text-cyan-300 font-mono">
@@ -120,16 +119,29 @@ export const CryptoChainModal: React.FC<CryptoChainModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-2.5">
+          {onOpenTrading && (
+            <button
+              onClick={() => {
+                sound.playClick();
+                onOpenTrading(chain.symbol);
+                onClose();
+              }}
+              className="w-full sm:flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
+            >
+              <Zap className="w-4 h-4 text-amber-300" /> Trade {chain.symbol} Live
+            </button>
+          )}
+
           <button
             onClick={() => {
               sound.playClick();
               onTeleportToCore();
               onClose();
             }}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-semibold shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+            className="w-full sm:flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-600/50 shadow-lg shadow-cyan-950/20 transition-all cursor-pointer"
           >
-            <Compass className="w-4 h-4" /> Orbit Central Planet
+            <Compass className="w-4 h-4 text-cyan-400" /> Orbit Planet
           </button>
 
           <button
@@ -138,9 +150,9 @@ export const CryptoChainModal: React.FC<CryptoChainModalProps> = ({
               onInspectGenesisWall();
               onClose();
             }}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+            className="w-full sm:flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
           >
-            <ExternalLink className="w-4 h-4" /> View Wall Genesis #001
+            <ExternalLink className="w-4 h-4 text-slate-400" /> Wall #001
           </button>
         </div>
       </div>

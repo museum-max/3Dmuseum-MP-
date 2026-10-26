@@ -16,6 +16,7 @@ import {
   Menu,
   X,
   Globe,
+  TrendingUp,
 } from 'lucide-react';
 import { WalletState } from '../types';
 import { sound } from '../audio/soundEffects';
@@ -30,6 +31,7 @@ interface TopBarProps {
   onOpenTransactions: () => void;
   onConnectWallet: () => void;
   onFocusCorePlanet?: () => void;
+  onOpenTrading?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -41,6 +43,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenTransactions,
   onConnectWallet,
   onFocusCorePlanet,
+  onOpenTrading,
 }) => {
   const [muted, setMuted] = useState(sound.getMuted());
   const [showHelp, setShowHelp] = useState(false);
@@ -113,6 +116,21 @@ export const TopBar: React.FC<TopBarProps> = ({
             >
               {muted ? <VolumeX className="w-4 h-4 text-slate-400" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
             </button>
+
+            {/* Live Crypto Trading Terminal Button */}
+            {onOpenTrading && (
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  onOpenTrading();
+                }}
+                title="Live Real-Time Crypto & Financial Asset Trading"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/80 border border-cyan-500/60 text-cyan-300 hover:bg-cyan-900 hover:text-white transition-colors text-xs font-mono font-bold shadow-md shadow-cyan-950/40 cursor-pointer"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Live Trading</span>
+              </button>
+            )}
 
             {/* Marketplace Button */}
             <button
@@ -234,6 +252,22 @@ export const TopBar: React.FC<TopBarProps> = ({
                 {wallet.network.name}
               </span>
             </div>
+
+            {onOpenTrading && (
+              <button
+                onClick={() => {
+                  onOpenTrading();
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-cyan-300 hover:bg-slate-800 text-xs text-left font-bold border border-cyan-500/30 bg-cyan-950/40"
+              >
+                <TrendingUp className="w-4 h-4 text-cyan-400" />
+                <div className="flex flex-col">
+                  <span>Live Crypto Exchange</span>
+                  <span className="text-[10px] text-cyan-400/80 font-mono">Real-Time Tickers & Trades</span>
+                </div>
+              </button>
+            )}
 
             <button
               onClick={() => {

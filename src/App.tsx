@@ -12,6 +12,7 @@ import { MiniMap } from './components/MiniMap';
 import { MobileControls } from './components/MobileControls';
 import { WalletModal } from './components/WalletModal';
 import { CryptoChainModal } from './components/CryptoChainModal';
+import { LiveTradingTerminal } from './components/LiveTradingTerminal';
 import { CryptoChainInfo } from './three/cryptoLogos';
 import { MuseumScene } from './three/MuseumScene';
 import {
@@ -103,6 +104,46 @@ const INITIAL_EXHIBITS: ExhibitData[] = [
     rotation: [0, 0, 0],
     room: 'rotunda',
     accentColor: '#38bdf8',
+  },
+  {
+    id: 'nft-old-gangster',
+    title: 'Old Gangster #001',
+    artist: 'WORLCORE MUSEUM',
+    creatorAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    ownerAddress: '0x71C8A9bE1A43F04918fEb1B49f57E5a9b1C6B49f',
+    contractAddress: '0x8A72F67c132899479b12d5d852c00a0E341B442A',
+    tokenId: '001',
+    imageUrl: '/assets/aistudio/Rainy_Noir_Gangster_Portrait_3202bd82.png',
+    tokenURI: 'ipfs://YOUR_IMAGE_CID',
+    description: 'A legendary vintage street gangster from the WORLCORE MUSEUM NFT Collection. Featuring a black pinstripe suit, gold jewelry, a classic fedora, and a dark cinematic city atmosphere.',
+    rarity: 'Legendary',
+    edition: '001 (1 of 1 Masterpiece)',
+    tags: [
+      'WORLCORE MUSEUM',
+      'Old Gangster',
+      'Black Pinstripe Suit',
+      'Dark Street Noir',
+      'Vintage Fedora',
+      'Gold Chain',
+      'Legendary',
+    ],
+    attributes: [
+      { trait_type: 'Collection', value: 'WORLCORE MUSEUM' },
+      { trait_type: 'Character', value: 'Old Gangster' },
+      { trait_type: 'Outfit', value: 'Black Pinstripe Suit' },
+      { trait_type: 'Accessory', value: 'Gold Chain' },
+      { trait_type: 'Headwear', value: 'Vintage Fedora' },
+      { trait_type: 'Style', value: 'Dark Street Noir' },
+      { trait_type: 'Rarity', value: 'Legendary' },
+      { trait_type: 'Edition', value: '001' },
+    ],
+    currentBid: 6.20,
+    bidsCount: 38,
+    likesCount: 845,
+    position: [18.38, 0, 0],
+    rotation: [0, -Math.PI / 2, 0],
+    room: 'cyberpunk',
+    accentColor: '#f59e0b',
   },
   {
     id: 'nft-1',
@@ -255,6 +296,8 @@ export default function App() {
   const [guestbookOpen, setGuestbookOpen] = useState(false);
   const [transactionsOpen, setTransactionsOpen] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const [tradingModalOpen, setTradingModalOpen] = useState(false);
+  const [tradingSymbol, setTradingSymbol] = useState('BTC');
 
   // Firestore-synced data
   const [guestbookEntries, setGuestbookEntries] = useState<VisitorLogEntry[]>([]);
@@ -480,6 +523,7 @@ export default function App() {
         onOpenGuestbook={() => setGuestbookOpen(true)}
         onOpenTransactions={() => setTransactionsOpen(true)}
         onConnectWallet={handleConnectWallet}
+        onOpenTrading={() => setTradingModalOpen(true)}
         onFocusCorePlanet={() => {
           if (sceneRef.current) {
             sceneRef.current.focusCorePlanet();
@@ -519,6 +563,12 @@ export default function App() {
         }}
         onOpenImportModal={() => setImportModalOpen(true)}
         onOpenMarketplace={() => setMarketplaceOpen(true)}
+        onOpenTrading={() => setTradingModalOpen(true)}
+        onFocusCorePlanet={() => {
+          if (sceneRef.current) {
+            sceneRef.current.focusCorePlanet();
+          }
+        }}
         onToggleNavMode={handleToggleNavMode}
         onVirtualKey={handleVirtualKey}
         activeExhibit={currentActiveExhibitData}
@@ -605,6 +655,10 @@ export default function App() {
       <CryptoChainModal
         chain={selectedChain}
         onClose={() => setSelectedChain(null)}
+        onOpenTrading={(sym) => {
+          setTradingSymbol(sym);
+          setTradingModalOpen(true);
+        }}
         onTeleportToCore={() => {
           if (sceneRef.current) {
             sceneRef.current.focusCorePlanet();
@@ -616,6 +670,13 @@ export default function App() {
             sceneRef.current.focusExhibit(genesisEx);
           }
         }}
+      />
+
+      {/* Real-Time Live Crypto & Financial Asset Trading Terminal */}
+      <LiveTradingTerminal
+        isOpen={tradingModalOpen}
+        onClose={() => setTradingModalOpen(false)}
+        initialSymbol={tradingSymbol}
       />
     </div>
   );
