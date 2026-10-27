@@ -64,11 +64,11 @@ Installation
 
 Clone the repository:
 
-git clone YOUR_GITHUB_REPOSITORY_URL
+git clone https://github.com/museum-max/3Dmuseum-MP-/tree/main
 
 Open the project directory:
 
-cd YOUR_PROJECT_FOLDER
+cd https://3-dmuseum-mp.vercel.app/
 
 Install dependencies:
 
